@@ -12,6 +12,6 @@ Mykola - 300231442 - mfore048@uottawa.ca
 
 André - 300215137 - alepa042@uottawa.ca
 
-Luca - 300161017 - lbala022@uottawa.ca
+Luca Balan - 300161017 - lbala022@uottawa.ca
 
 Olivier Guindon - 300236168 - oguin073@uottawa.ca
