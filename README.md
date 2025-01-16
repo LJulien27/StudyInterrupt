@@ -8,7 +8,7 @@ StudyInterrupt is an AI-powered browser extension designed to keep users account
 
 Liam
 
-Mykola - 300231442
+Mykola - 300231442 - mfore048@uottawa.ca
 
 André
 
