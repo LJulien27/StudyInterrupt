@@ -7,7 +7,11 @@ StudyInterrupt is an AI-powered browser extension designed to keep users account
 Contributors:
 
 Liam
+
 Mykola
+
 André
+
 Luca
+
 Olivier Guindon - 300236168
