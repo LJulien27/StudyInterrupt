@@ -10,7 +10,7 @@ Liam - 300251443 - ljuli048@uOttawa.ca
 
 Mykola - 300231442 - mfore048@uottawa.ca
 
-André
+André - 300215137 - alepa042@uottawa.ca
 
 Luca
 
