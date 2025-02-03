@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyInterrupt</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background-color: #f8f9fa;
+        padding: 20px;
+        width: 350px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+      }
+      h2 {
+        color: #333;
+      }
+      p {
+        color: #666;
+      }
+      .question-box {
+        background: #eef;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+      }
+      input {
+        width: 80%;
+        padding: 8px;
+        margin: 10px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      .skip {
+        background: none;
+        color: #888;
+        border: none;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>StudyInterrupt</h2>
+      <p>Pause! It's time to study.</p>
+      <div class="question-box">
+        <p>
+          <strong>Question:</strong> What is the time complexity of QuickSort in
+          the worst case?
+        </p>
+      </div>
+      <input type="text" placeholder="Enter your answer..." />
+      <br />
+      <button>Submit</button>
+      <br />
+      <button class="skip">Skip for now</button>
+    </div>
+  </body>
+</html>
