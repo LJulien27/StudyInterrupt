@@ -31,12 +31,13 @@
         border-radius: 8px;
         margin: 15px 0;
       }
-      input {
-        width: 80%;
-        padding: 8px;
+      .options {
+        text-align: left;
         margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 5px;
+      }
+      .options label {
+        display: block;
+        padding: 5px;
       }
       button {
         background-color: #007bff;
@@ -65,12 +66,27 @@
       <p>Pause! It's time to study.</p>
       <div class="question-box">
         <p>
-          <strong>Question:</strong> What is the time complexity of QuickSort in
-          the worst case?
+          <strong>Question:</strong> Which sorting algorithm has the best
+          average-case time complexity?
         </p>
+        <div class="options">
+          <label
+            ><input type="radio" name="answer" value="1" /> A) Bubble
+            Sort</label
+          >
+          <label
+            ><input type="radio" name="answer" value="2" /> B) Merge Sort</label
+          >
+          <label
+            ><input type="radio" name="answer" value="3" /> C) Insertion
+            Sort</label
+          >
+          <label
+            ><input type="radio" name="answer" value="4" /> D) Selection
+            Sort</label
+          >
+        </div>
       </div>
-      <input type="text" placeholder="Enter your answer..." />
-      <br />
       <button>Submit</button>
       <br />
       <button class="skip">Skip for now</button>
