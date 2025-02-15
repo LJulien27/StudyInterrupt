@@ -17,7 +17,7 @@ async def add_user(name: str):
     result = mycol.insert_one(doc)
     return {"inserted_id": str(result.inserted_id)}
 
-
+#GET Requests
 @app.get("/users/{id}")
 async def get_user_by_id(id: str):
     try:
@@ -41,3 +41,35 @@ async def get_users():
         x["_id"] = str(x["_id"])  # Convert ObjectId to string
         users.append(x)
     return {"users": users}
+
+@app.get("/users/{id}/sessions")
+async def get_users_sessions(id: str):
+    return {}
+
+@app.get("/users/{id}/contests")
+async def get_users_contests(id: str):
+    return {}
+
+@app.get("/sessions/{id}/contests")
+async def get_sessions_contest(id: str):
+    return {}
+
+@app.get("/sessions/{id}/contests")
+async def get_sessions_quizzes(id: str):
+    return {}
+
+@app.get("/users/{id}/quizzes")
+async def get_users_quizzes(id: str):
+    return {}
+
+@app.get("/quizzes/{id}")
+async def get_quizzes_by_id(id: str):
+    return {}
+
+@app.get("/quizzes/{id}/questions")
+async def get_quizzes_questions(id: str):
+    return {}
+
+@app.get("/questions/{id}")
+async def get_question_by_id(id: str):
+    return {}
