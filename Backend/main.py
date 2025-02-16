@@ -1,21 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from pymongo import MongoClient
 from bson import ObjectId
-
+from models import *
 # Connect to MongoDB
 myClient = MongoClient("mongodb://localhost:27017/")
 mydb = myClient["mydatabase"]
 mycol = mydb["users"]
 
-# Initialize FastAPI app
+
+    # Initialize FastAPI app
 app = FastAPI(title="Fast Mongo API")
-
-
-@app.post("/users/{name}")
-async def add_user(name: str):
-    doc = {"name": name}
-    result = mycol.insert_one(doc)
-    return {"inserted_id": str(result.inserted_id)}
 
 #GET Requests
 @app.get("/users/{id}")
@@ -73,3 +67,10 @@ async def get_quizzes_questions(id: str):
 @app.get("/questions/{id}")
 async def get_question_by_id(id: str):
     return {}
+
+#POST methods
+@app.post("/users")
+async def add_user(name: str):
+    doc = {"name": name}
+    result = mycol.insert_one(doc)
+    return {"inserted_id": str(result.inserted_id)}
