@@ -8,6 +8,14 @@ const QuizCreate = (props: QuizCreateProps) => {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['']);
   const [answer, setAnswer] = useState('');
+  const [questionS, setQuestionS] = useState('');
+  const [questionE, setQuestionE] = useState('');
+
+  const handleFillInTheBlank = (qstart: string, qend: string) => {
+      if (questionType === 'fill-in-the-blank') {
+         setQuestion(qstart + ' &&& ' + qend);
+      }
+  };
 
   const handleAddOption = () => {
     setOptions([...options, '']);
@@ -38,7 +46,57 @@ const QuizCreate = (props: QuizCreateProps) => {
             <option value="association">Association Question</option>
           </select>
         </div>
-        <div>
+        {questionType === 'fill-in-the-blank' && (
+            <div>
+               <label>Question Start:</label>
+               <input
+               type="text"
+               value={questionS}
+               onChange={(e) => setQuestionS(e.target.value)}
+               required
+               />
+               <div/>
+               <label>Answer:</label>
+               <input
+               type="text"
+               value={answer}
+               onChange={(e) => setAnswer(e.target.value)}
+               required
+               />
+               <div/>
+               <label>Question End:</label>
+               <input 
+               type="text" 
+               value={questionE}
+               onChange={(e) => setQuestionE(e.target.value)}
+               required
+               />
+               <div/>
+               <label>Preview:</label>
+               <input
+               type="text"
+               value={questionS + ' ' + answer + ' ' + questionE}
+               required
+               readOnly
+               />
+            </div>
+        )}
+
+        {questionType === 'association' && (<div>
+            <label>Question:</label>
+            <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            required
+            />
+
+            // Add association question logic here
+        </div>)}
+            
+
+        {(questionType === 'single-select' || questionType === 'multi-select') && (
+          <div>
           <label>Question:</label>
           <input
             type="text"
@@ -46,8 +104,6 @@ const QuizCreate = (props: QuizCreateProps) => {
             onChange={(e) => setQuestion(e.target.value)}
             required
           />
-        </div>
-        {(questionType === 'single-select' || questionType === 'multi-select') && (
           <div>
             <label>Options:</label>
             {options.map((option, index) => (
@@ -58,22 +114,21 @@ const QuizCreate = (props: QuizCreateProps) => {
                   onChange={(e) => handleOptionChange(index, e.target.value)}
                   required
                 />
+                <input
+                  type="radio"
+                  name="answer"
+                  checked={answer === option}
+                  onChange={() => setAnswer(option)}
+                />
               </div>
             ))}
             <button type="button" onClick={handleAddOption}>
               Add Option
             </button>
           </div>
+         </div>
         )}
-        <div>
-          <label>Answer:</label>
-          <input
-            type="text"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            required
-          />
-        </div>
+
         <button type="submit">Create Question</button>
       </form>
     </QuizCreateWrapper>
