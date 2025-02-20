@@ -25,12 +25,26 @@ const QuizCreate = (props: QuizCreateProps) => {
     const newOptions = [...options];
     newOptions[index] = value;
     setOptions(newOptions);
+    // Filer out answers not in the new options
+    const validAnswers = answer.split(',').map(a => a.trim()).filter(a => newOptions.includes(a));
+    setAnswer(validAnswers.join(', '));
   };
+
+  const handleCheckboxChange = (option: string) => {
+   const answers = answer.split(',').map(a => a.trim()).filter(a => a !== '');
+   if (answers.includes(option)) {
+     setAnswer(answers.filter(a => a !== option).join(', '));
+   } else {
+     setAnswer([...answers, option].join(', '));
+   }
+ };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+
     // Handle form submission logic here
     console.log({ questionType, question, options, answer });
+    // Add an 'Are you sure' Modal here
   };
 
   return (
@@ -114,12 +128,23 @@ const QuizCreate = (props: QuizCreateProps) => {
                   onChange={(e) => handleOptionChange(index, e.target.value)}
                   required
                 />
+                {questionType === 'single-select' ? (
                 <input
                   type="radio"
                   name="answer"
                   checked={answer === option}
                   onChange={() => setAnswer(option)}
                 />
+                )
+                : (
+                  <input
+                     type="checkbox"
+                     name="answer"
+                     checked={answer.split(',').map(a => a.trim()).includes(option)}
+                     onChange={() => handleCheckboxChange(option)}
+                  />
+                )
+               }
               </div>
             ))}
             <button type="button" onClick={handleAddOption}>
