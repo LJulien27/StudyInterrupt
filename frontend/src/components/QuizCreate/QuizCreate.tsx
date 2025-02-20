@@ -4,6 +4,8 @@ import ConfirmModal from '../ConfirmModal/ConfirmModal';
 
 interface QuizCreateProps {}
 
+type Associations = { [key: string]: string };
+
 const QuizCreate = (props: QuizCreateProps) => {
   const [questionType, setQuestionType] = useState('single-select');
   const [question, setQuestion] = useState('');
@@ -12,6 +14,10 @@ const QuizCreate = (props: QuizCreateProps) => {
   const [questionS, setQuestionS] = useState('');
   const [questionE, setQuestionE] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [leftOptions, setLeftOptions] = useState(['']);
+  const [rightOptions, setRightOptions] = useState(['']);
+  const [associations, setAssociations] = useState<Associations>({});
+
 
   const handleFillInTheBlank = (qstart: string, qend: string) => {
       if (questionType === 'fill-in-the-blank') {
@@ -39,6 +45,40 @@ const QuizCreate = (props: QuizCreateProps) => {
    } else {
      setAnswer([...answers, option].join(', '));
    }
+ };
+
+ const handleAddAssociationOption = () => {
+   setLeftOptions([...leftOptions, '']);
+   setRightOptions([...rightOptions, '']);
+ };
+
+ const handleLeftOptionChange = (index: number, value: string) => {
+   const newLeftOptions = [...leftOptions];
+   newLeftOptions[index] = value;
+   setLeftOptions(newLeftOptions);
+ };
+
+ const handleRightOptionChange = (index: number, value: string) => {
+   const newRightOptions = [...rightOptions];
+   newRightOptions[index] = value;
+   setRightOptions(newRightOptions);
+ };
+
+ const handleAssociationChange = (leftOption: string, rightOption: string) => {
+   // Create a new associations object without the old association
+   const newAssociations = { ...associations };
+ 
+   // Remove any existing association with the right option
+   Object.keys(newAssociations).forEach(key => {
+     if (newAssociations[key] === rightOption) {
+       delete newAssociations[key];
+     }
+   });
+ 
+   // Set the new association
+   newAssociations[leftOption] = rightOption;
+ 
+   setAssociations(newAssociations);
  };
 
   const handleSubmit = (e: FormEvent) => {
@@ -109,17 +149,65 @@ const QuizCreate = (props: QuizCreateProps) => {
             </div>
         )}
 
-        {questionType === 'association' && (<div>
+{questionType === 'association' && (
+          <div>
             <label>Question:</label>
             <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            required
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              required
             />
-
-            // Add association question logic here
-        </div>)}
+            <div>
+              <label>Left Options:</label>
+              {leftOptions.map((option, index) => (
+                <div key={index}>
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => handleLeftOptionChange(index, e.target.value)}
+                    required
+                  />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label>Right Options:</label>
+              {rightOptions.map((option, index) => (
+                <div key={index}>
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => handleRightOptionChange(index, e.target.value)}
+                    required
+                  />
+                </div>
+              ))}
+              <button type="button" onClick={handleAddAssociationOption}>
+                Add Association Option
+              </button>
+            </div>
+            <div>
+              <label>Associations:</label>
+              {leftOptions.map((leftOption, index) => (
+                <div key={index}>
+                  <span>{leftOption}</span>
+                  <select
+                    value={associations[leftOption] || ''}
+                    onChange={(e) => handleAssociationChange(leftOption, e.target.value)}
+                  >
+                    <option value="">Select</option>
+                    {rightOptions.map((rightOption, idx) => (
+                      <option key={idx} value={rightOption}>
+                        {rightOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
             
 
         {(questionType === 'single-select' || questionType === 'multi-select') && (
