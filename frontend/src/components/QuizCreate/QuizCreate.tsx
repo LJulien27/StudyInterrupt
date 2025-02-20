@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from 'react';
 import { QuizCreateWrapper } from './QuizCreate.styled';
+import ConfirmModal from '../ConfirmModal/ConfirmModal';
 
 interface QuizCreateProps {}
 
@@ -10,6 +11,7 @@ const QuizCreate = (props: QuizCreateProps) => {
   const [answer, setAnswer] = useState('');
   const [questionS, setQuestionS] = useState('');
   const [questionE, setQuestionE] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleFillInTheBlank = (qstart: string, qend: string) => {
       if (questionType === 'fill-in-the-blank') {
@@ -42,9 +44,20 @@ const QuizCreate = (props: QuizCreateProps) => {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
 
+    setIsModalOpen(true);
+
     // Handle form submission logic here
     console.log({ questionType, question, options, answer });
     // Add an 'Are you sure' Modal here
+  };
+
+  const handleConfirm = () => {
+      setIsModalOpen(false);
+      //submit & reset form
+  };
+
+  const handleCancel = () => {
+      setIsModalOpen(false);
   };
 
   return (
@@ -156,6 +169,7 @@ const QuizCreate = (props: QuizCreateProps) => {
 
         <button type="submit">Create Question</button>
       </form>
+      <ConfirmModal isOpen={isModalOpen} onConfirm={handleConfirm} onCancel={handleCancel} />
     </QuizCreateWrapper>
   );
 };
