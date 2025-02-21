@@ -16,14 +16,6 @@ class Username(BaseModel):
     id: str
     username: str
 
-class Session(BaseModel):
-    start_time: datetime
-    end_time: datetime
-    creator_id: str
-    participants: List[Username]
-    quiz_id: float | None = None
-
-
 class Contest(BaseModel):
     grades: List[str] | None = None
     participants: List[Username]
@@ -39,6 +31,7 @@ class Question(BaseModel):
 class Quizz(BaseModel):
     title: str
     creator_id: str
+    session_id: str | None = None
     created_at: datetime
     questions: List[str]
 
@@ -48,3 +41,11 @@ class Interrupt(BaseModel):
     interrupt_time: str
     creator_id : str
     session_id: str | None = None
+
+class Session(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    creator_id: str
+    interrupts: List[Interrupt]
+    participants: List[Username]
+    quiz_id: float | None = None
