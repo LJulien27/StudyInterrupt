@@ -10,5 +10,5 @@
 ### Andre's Timesheet
 | Date            | Duration        | Time             | Task            |
 |-----------------|-----------------|------------------|-----------------|
-| Feb 25          | 1 hour        | 1:15 - 2:15 PM   | HTML template   |
+| Feb 25          | 1 hour        | 1:15 - 2:15 PM   | Adding Tests to the API   |
 | **Total Time**  | 1 hour
