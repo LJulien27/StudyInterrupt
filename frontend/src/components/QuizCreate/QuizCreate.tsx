@@ -68,7 +68,7 @@ const QuizCreate = () => {
       <h3>Questions</h3>
       <ul>
         {questions.map((q, index) => (
-          <li key={index}>
+          <li key={index} className="mb-2">
             {q.text} ({q.type})
             <Button variant="warning" size="sm" onClick={() => handleEditQuestion(index)} className="ms-2">
               Edit
