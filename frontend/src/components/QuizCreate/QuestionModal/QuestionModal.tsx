@@ -1,5 +1,5 @@
 import React, { useState, FormEvent, useEffect } from 'react';
-import { Modal, Button, Form, FloatingLabel } from 'react-bootstrap';
+import { Modal, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 
 interface Question {
   type: string;
@@ -63,7 +63,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       </Modal.Header>
       <Modal.Body>
         <form onSubmit={handleSubmit}>
-        <Form.Select value={questionType} onChange={(e) => setQuestionType(e.target.value)}>
+        <Form.Select className="mb-2" value={questionType} onChange={(e) => setQuestionType(e.target.value)}>
             <option value="single-select">Single Select Multiple Choice</option>
             <option value="multi-select">Multi Select Multiple Choice</option>
             <option value="fill-in-the-blank">Fill in the Blank</option>
@@ -82,28 +82,44 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
 
           {(questionType === 'single-select' || questionType === 'multi-select') && (
             <div>
-              <label>Options:</label>
-              {options.map((option, index) => (
-                <FloatingLabel key={index} controlId={`option-${index}`} label={`Option ${index + 1}`} className="mb-2">
-                  <Form.Control
-                    type="text"
-                    value={option}
-                    onChange={(e) => {
-                      const newOptions = [...options];
-                      newOptions[index] = e.target.value;
-                      setOptions(newOptions);
-                    }}
-                    required
-                  />
-                </FloatingLabel>
-              ))}
-              <Button variant="secondary" onClick={() => setOptions([...options, ''])}>
-                Add Option
-              </Button>
+                <label>Options:</label>
+                {options.map((option, index) => (
+                <InputGroup key={index} className="mb-2">
+                    <InputGroup.Checkbox
+                        checked={answer.split(',').map(a => a.trim()).includes(option)}
+                        onChange={() => {
+                            const answers = answer.split(',').map(a => a.trim()).filter(a => a !== '');
+
+                            // THIS NEEDS TO BE FIXED, SetAnswer MIGHT JUST BE FOR ONE ANSWER BUT HERE IT SHOULD BE ABLE TO HANDLE MULTIPLE
+
+                            if (answers.includes(option)) {
+                                setAnswer(answers.filter(a => a !== option).join(', ')); // Remove from answers
+                            } else {
+                                setAnswer([...answers, option].join(', ')); // Add to answers
+                            }
+                        }}
+                    />
+                    <FloatingLabel controlId={`option-${index}`} label={`Option ${index + 1}`}>
+                        <Form.Control
+                            type="text"
+                            value={option}
+                            onChange={(e) => {
+                                const newOptions = [...options];
+                                newOptions[index] = e.target.value;
+                                setOptions(newOptions);
+                            }}
+                            required
+                        />
+                    </FloatingLabel>
+                </InputGroup>
+                ))}
+                <Button variant="secondary" onClick={() => setOptions([...options, ''])}>
+                    Add Option
+                </Button>
             </div>
           )}
 
-          <FloatingLabel controlId="questionAnswer" label="Answer" className="mb-3">
+          <FloatingLabel controlId="questionAnswer" label="Answer" className="mb-2">
             <Form.Control
               type="text"
               placeholder="Enter answer"
