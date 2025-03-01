@@ -1,5 +1,6 @@
 import React, { useState, FormEvent, useEffect } from 'react';
 import { Modal, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
+import Associations from '../../../types/Associations';
 
 interface Question {
   type: string;
@@ -28,6 +29,11 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
   const [options, setOptions] = useState(defaultQuestion.options);
   const [answer, setAnswer] = useState(defaultQuestion.answer);
 
+  const [questionEnd, setQuestionEnd] = useState('');
+  const [leftOptions, setLeftOptions] = useState(['']);
+  const [rightOptions, setRightOptions] = useState(['']);
+  const [associations, setAssociations] = useState<Associations>({});
+
   // Load data when editing an existing question
   useEffect(() => {
     if (editingQuestion) {
@@ -50,10 +56,44 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
   };
 
   const handleReset = () => {
-    setQuestionType(defaultQuestion.type);
     setQuestion(defaultQuestion.text);
     setOptions(defaultQuestion.options);
     setAnswer(defaultQuestion.answer);
+    setQuestionEnd('');
+  };
+
+  const handleAddAssociationOption = () => {
+    setLeftOptions([...leftOptions, '']);
+    setRightOptions([...rightOptions, '']);
+  };
+ 
+  const handleLeftOptionChange = (index: number, value: string) => {
+    const newLeftOptions = [...leftOptions];
+    newLeftOptions[index] = value;
+    setLeftOptions(newLeftOptions);
+  };
+ 
+  const handleRightOptionChange = (index: number, value: string) => {
+    const newRightOptions = [...rightOptions];
+    newRightOptions[index] = value;
+    setRightOptions(newRightOptions);
+  };
+
+  const handleAssociationChange = (leftOption: string, rightOption: string) => {
+    // Create a new associations object without the old association
+    const newAssociations = { ...associations };
+  
+    // Remove any existing association with the right option
+    Object.keys(newAssociations).forEach(key => {
+      if (newAssociations[key] === rightOption) {
+        delete newAssociations[key];
+      }
+    });
+  
+    // Set the new association
+    newAssociations[leftOption] = rightOption;
+  
+    setAssociations(newAssociations);
   };
 
   return (
@@ -79,6 +119,91 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
               required
             />
           </FloatingLabel>
+          {questionType === 'fill-in-the-blank' && (
+            <div>
+               <FloatingLabel controlId="questionAnswer" label="Answer" className="mb-3">
+                <Form.Control
+                  type="text"
+                  placeholder="Enter answer"
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  required
+                  />
+               </FloatingLabel>
+               <div/>
+               <FloatingLabel controlId="questionEnd" label="Question End" className="mb-3">
+                <Form.Control
+                  type="text"
+                  placeholder="Enter question end"
+                  value={questionEnd}
+                  onChange={(e) => setQuestionEnd(e.target.value)}
+                  required
+                  />
+               </FloatingLabel>
+                <div/>
+                <FloatingLabel controlId="Preview" label="Preview" className="mb-3">
+                <Form.Control
+                  type="text"
+                  value={question + ' ' + answer + ' ' + questionEnd}
+                  required
+                  readOnly
+                  />
+               </FloatingLabel>
+            </div>
+        )}
+
+        {questionType === 'association' && (
+          <div>
+            <div>
+              <label>Left Options:</label>
+              {leftOptions.map((option, index) => (
+                <FloatingLabel key={index} controlId={`leftOption-${index}`} label={`Left Option ${index + 1}`} className="mb-3">
+                <Form.Control
+                  type="text"
+                  value={option}
+                  onChange={(e) => handleLeftOptionChange(index, e.target.value)}
+                  required
+                />
+              </FloatingLabel>
+              ))}
+            </div>
+            <div>
+              <label>Right Options:</label>
+              {rightOptions.map((option, index) => (
+                <FloatingLabel key={index} controlId={`rightOption-${index}`} label={`Right Option ${index + 1}`} className="mb-3">
+                <Form.Control
+                  type="text"
+                  value={option}
+                  onChange={(e) => handleRightOptionChange(index, e.target.value)}
+                  required
+                />
+              </FloatingLabel>
+              ))}
+              <Button type="button" onClick={handleAddAssociationOption}>
+                  Add Association Option
+                </Button>
+            </div>
+            <div>
+                <label>Associations:</label>
+                {leftOptions.map((leftOption, index) => (
+                  <div key={index}>
+                    <label>{leftOption}</label>
+                    <Form.Select
+                      value={associations[leftOption] || ''}
+                      onChange={(e) => handleAssociationChange(leftOption, e.target.value)}
+                    >
+                      <option value="">Select</option>
+                      {rightOptions.map((rightOption, idx) => (
+                        <option key={idx} value={rightOption}>
+                          {rightOption}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </div>
+                ))}
+              </div>
+          </div>
+        )}
 
           {(questionType === 'single-select' || questionType === 'multi-select') && (
             <div>
@@ -94,8 +219,11 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
 
                             if (answers.includes(option)) {
                                 setAnswer(answers.filter(a => a !== option).join(', ')); // Remove from answers
-                            } else {
+                            } else if (questionType === 'multi-select') {
                                 setAnswer([...answers, option].join(', ')); // Add to answers
+                            }
+                            else {
+                                setAnswer(option); // Set as the only answer
                             }
                         }}
                     />
@@ -111,6 +239,9 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                             required
                         />
                     </FloatingLabel>
+                  <Button variant="danger" onClick={() => setOptions(options.filter((_, i) => i !== index))}>
+                      Remove
+                  </Button>
                 </InputGroup>
                 ))}
                 <Button variant="secondary" onClick={() => setOptions([...options, ''])}>
@@ -118,23 +249,14 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                 </Button>
             </div>
           )}
-
-          <FloatingLabel controlId="questionAnswer" label="Answer" className="mb-2">
-            <Form.Control
-              type="text"
-              placeholder="Enter answer"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              required
-            />
-          </FloatingLabel>
-
-          <Button type="submit" variant="success">
-            Save Question
-          </Button>
-          <Button variant="warning" className="ms-2" onClick={handleReset}>
-            Reset
-          </Button>
+          <div className='mt-3'>
+            <Button type="submit" variant="success">
+              Save Question
+            </Button>
+            <Button variant="warning" className="ms-2" onClick={handleReset}>
+              Reset
+            </Button>
+          </div>
         </form>
       </Modal.Body>
     </Modal>

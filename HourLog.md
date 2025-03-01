@@ -13,3 +13,10 @@
 |-----------------|-----------------|------------------|-----------------|
 | Feb 25          | 1 hour        | 1:15 - 2:15 PM   | Adding Tests to the API   |
 | **Total Time**  | 1 hour
+
+
+### Myko's Timesheet
+| Date            | Duration        | Time             | Task            |
+|-----------------|-----------------|------------------|-----------------|
+| Mar 1           | 3 hours         | 9:30AM - 12:30PM | Form Implem.    |
+| **Total Time**  | 3 hours
