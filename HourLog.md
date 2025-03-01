@@ -19,4 +19,5 @@
 | Date            | Duration        | Time             | Task            |
 |-----------------|-----------------|------------------|-----------------|
 | Mar 1           | 3 hours         | 9:30AM - 12:30PM | Form Implem.    |
+| Mar 1           | 4 hours         | 1:30PM -  5:30PM | Form Implem.    |
 | **Total Time**  | 3 hours

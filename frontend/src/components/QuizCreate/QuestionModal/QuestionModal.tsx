@@ -1,13 +1,8 @@
 import React, { useState, FormEvent, useEffect } from 'react';
 import { Modal, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Associations from '../../../types/Associations';
+import Question, { QuestionType } from '../../../types/Question';
 
-interface Question {
-  type: string;
-  text: string;
-  options?: string[];
-  answer: string;
-}
 
 interface QuestionModalProps {
   show: boolean;
@@ -18,15 +13,15 @@ interface QuestionModalProps {
 
 const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, editingQuestion }) => {
   const defaultQuestion = {
-    type: 'single-select',
+    type: QuestionType.SINGLESELECT,
     text: '',
-    options: [''],
+    body: '',
     answer: '',
   };
 
   const [questionType, setQuestionType] = useState(defaultQuestion.type);
   const [question, setQuestion] = useState(defaultQuestion.text);
-  const [options, setOptions] = useState(defaultQuestion.options);
+  const [body, setBody] = useState(defaultQuestion.body);
   const [answer, setAnswer] = useState(defaultQuestion.answer);
 
   const [questionEnd, setQuestionEnd] = useState('');
@@ -39,25 +34,82 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
     if (editingQuestion) {
       setQuestionType(editingQuestion.type);
       setQuestion(editingQuestion.text);
-      setOptions(editingQuestion.options || ['']);
+      setBody(editingQuestion.body);
       setAnswer(editingQuestion.answer);
     } else {
       // Reset to default when adding a new question
       setQuestionType(defaultQuestion.type);
       setQuestion(defaultQuestion.text);
-      setOptions(defaultQuestion.options);
+      setBody(defaultQuestion.body);
       setAnswer(defaultQuestion.answer);
     }
   }, [editingQuestion, show]);
 
+
+  /* Save the question according to the following format
+  *
+  * Multiple Choice:
+  * QuestionType: 1 or 2
+  * Text: Question text
+  * Body: Option1&!!&Option2&!!&Option3
+  * Answer: Option1&!!&Option2 (or Option1 for single select)
+  * 
+  * Fill in the Blank:
+  * QuestionType: 3
+  * Text: Question text before the blank
+  * Body: Question text after the blank
+  * Answer: Answer to the blank
+  * 
+  * Association:
+  * QuestionType: 4
+  * Text: Question text
+  * Body: LeftOption1&!!&LeftOption2&!!&LeftOption3
+  * Answer: RightOption1&!!&RightOption2&!!&RightOption3
+  * 
+  */
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    onSave({ type: questionType, text: question, options, answer });
+    
+    
+    if (questionType === QuestionType.ASSOCIATION) {
+
+      // Check if the associations are complete
+      for(const option in leftOptions) {
+        if (!associations[leftOptions[option]]) {
+          alert('Please select an association for each option');
+          console.log("Associations are incomplete");
+          return;
+        }
+      }
+
+      onSave({ type: questionType, text: question, body: leftOptions.join('&!!&'), answer: rightOptions.join('&!!&') });
+    }
+    else if (questionType === QuestionType.FILLBLANK) {
+      onSave({ type: questionType, text: question, body: questionEnd, answer });
+    }
+    else {
+      // Ensure the body has at least two options
+    const options = body.split('&!!&');
+    if (options.length < 2) {
+      alert('Please add at least two options');
+      return;
+    }
+
+    // Ensure an answer exists among the options
+    const answers = answer.split('&!!&');
+    const validAnswers = answers.filter(ans => options.includes(ans));
+    if (validAnswers.length < 1) {
+      alert('Please select at least one valid answer');
+      return;
+    }
+
+      onSave({ type: questionType, text: question, body, answer });
+    }
   };
 
   const handleReset = () => {
     setQuestion(defaultQuestion.text);
-    setOptions(defaultQuestion.options);
+    setBody(defaultQuestion.body);
     setAnswer(defaultQuestion.answer);
     setQuestionEnd('');
   };
@@ -103,11 +155,11 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       </Modal.Header>
       <Modal.Body>
         <form onSubmit={handleSubmit}>
-        <Form.Select className="mb-2" value={questionType} onChange={(e) => setQuestionType(e.target.value)}>
-            <option value="single-select">Single Select Multiple Choice</option>
-            <option value="multi-select">Multi Select Multiple Choice</option>
-            <option value="fill-in-the-blank">Fill in the Blank</option>
-            <option value="association">Association Question</option>
+        <Form.Select className="mb-2" value={questionType} onChange={(e) => setQuestionType(Number(e.target.value))}>
+            <option value={QuestionType.SINGLESELECT}>Single Select Multiple Choice</option>
+            <option value={QuestionType.MULTISELECT}>Multi Select Multiple Choice</option>
+            <option value={QuestionType.FILLBLANK}>Fill in the Blank</option>
+            <option value={QuestionType.ASSOCIATION}>Association Question</option>
         </Form.Select>
 
           <FloatingLabel controlId="questionText" label="Question" className="mb-3">
@@ -119,7 +171,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
               required
             />
           </FloatingLabel>
-          {questionType === 'fill-in-the-blank' && (
+          {questionType === QuestionType.FILLBLANK && (
             <div>
                <FloatingLabel controlId="questionAnswer" label="Answer" className="mb-3">
                 <Form.Control
@@ -152,7 +204,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
             </div>
         )}
 
-        {questionType === 'association' && (
+        {questionType === QuestionType.ASSOCIATION && (
           <div>
             <div>
               <label>Left Options:</label>
@@ -205,26 +257,22 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
           </div>
         )}
 
-          {(questionType === 'single-select' || questionType === 'multi-select') && (
+          {(questionType === QuestionType.SINGLESELECT || questionType === QuestionType.MULTISELECT) && (
             <div>
                 <label>Options:</label>
-                {options.map((option, index) => (
+                {body.split('&!!&').map((option, index) => (
                 <InputGroup key={index} className="mb-2">
                     <InputGroup.Checkbox
-                        checked={answer.split(',').map(a => a.trim()).includes(option)}
+                        checked={answer.split('&!!&').map(a => a.trim()).includes(option)}
                         onChange={() => {
-                            const answers = answer.split(',').map(a => a.trim()).filter(a => a !== '');
-
-                            // THIS NEEDS TO BE FIXED, SetAnswer MIGHT JUST BE FOR ONE ANSWER BUT HERE IT SHOULD BE ABLE TO HANDLE MULTIPLE
-
-                            if (answers.includes(option)) {
-                                setAnswer(answers.filter(a => a !== option).join(', ')); // Remove from answers
-                            } else if (questionType === 'multi-select') {
-                                setAnswer([...answers, option].join(', ')); // Add to answers
-                            }
-                            else {
-                                setAnswer(option); // Set as the only answer
-                            }
+                          const answers = answer.split('&!!&').map(a => a.trim()).filter(a => a !== '');
+                          if (questionType === QuestionType.SINGLESELECT) {
+                            setAnswer(option);
+                          } else if (answers.includes(option)) {
+                            setAnswer(answers.filter(a => a !== option).join('&!!&'));
+                          } else {
+                            setAnswer([...answers, option].join('&!!&'));
+                          }
                         }}
                     />
                     <FloatingLabel controlId={`option-${index}`} label={`Option ${index + 1}`}>
@@ -232,19 +280,19 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                             type="text"
                             value={option}
                             onChange={(e) => {
-                                const newOptions = [...options];
+                                const newOptions = [...body.split('&!!&')];
                                 newOptions[index] = e.target.value;
-                                setOptions(newOptions);
+                                setBody(newOptions.join('&!!&'));
                             }}
                             required
                         />
                     </FloatingLabel>
-                  <Button variant="danger" onClick={() => setOptions(options.filter((_, i) => i !== index))}>
+                  <Button variant="danger" onClick={() => setBody(body.split('&!!&').filter((_, i) => i !== index).join('&!!&'))}>
                       Remove
                   </Button>
                 </InputGroup>
                 ))}
-                <Button variant="secondary" onClick={() => setOptions([...options, ''])}>
+                <Button variant="secondary" onClick={() => setBody(body + '&!!&')}>
                     Add Option
                 </Button>
             </div>

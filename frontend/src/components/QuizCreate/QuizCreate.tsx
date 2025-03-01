@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { QuizCreateWrapper } from './QuizCreate.styled';
 import QuestionModal from './QuestionModal/QuestionModal';
 import { Button, Form, FloatingLabel } from 'react-bootstrap';
+import Question, {QuestionType} from '../../types/Question';
 
-interface Question {
-  type: string;
-  text: string;
-  options?: string[];
-  answer: string;
-}
 
 const QuizCreate = () => {
   const [quizName, setQuizName] = useState('');
@@ -40,6 +35,55 @@ const QuizCreate = () => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
+  const renderQuestion = (question: Question, index: number) => {
+    switch (question.type) {
+      case QuestionType.SINGLESELECT:
+         return (
+           <div>
+             <strong>Single Select:</strong> {question.text}
+             <ul>
+               {question.body.split('&!!&').map((option, idx) => (
+                 <li key={idx}>{option}</li>
+               ))}
+             </ul>
+             <p><strong>Answer:</strong> {question.answer}</p>
+           </div>
+         );
+       case QuestionType.MULTISELECT:
+         return (
+           <div>
+             <strong>Multi Select:</strong> {question.text}
+             <ul>
+               {question.body.split('&!!&').map((option, idx) => (
+                 <li key={idx}>{option}</li>
+               ))}
+             </ul>
+             <p><strong>Answers:</strong> {question.answer.split('&!!&').join(', ')}</p>
+           </div>
+         );
+       case QuestionType.FILLBLANK:
+         return (
+           <div>
+             <strong>Fill in the Blank:</strong> {question.text} ______ {question.body}
+             <p><strong>Answer:</strong> {question.answer}</p>
+           </div>
+         );
+       case QuestionType.ASSOCIATION:
+         return (
+           <div>
+             <strong>Association:</strong> {question.text}
+             <ul>
+               {question.body.split('&!!&').map((leftOption, idx) => (
+                 <li key={idx}>{leftOption} - {question.answer.split('&!!&')[idx]}</li>
+               ))}
+             </ul>
+           </div>
+         );
+       default:
+         return null;
+     }
+   };
+
   return (
     <QuizCreateWrapper>
       <h2>Create a Quiz</h2>
@@ -69,7 +113,7 @@ const QuizCreate = () => {
       <ul>
         {questions.map((q, index) => (
           <li key={index} className="mb-2">
-            {q.text} ({q.type})
+            {renderQuestion(q, index)}
             <Button variant="warning" size="sm" onClick={() => handleEditQuestion(index)} className="ms-2">
               Edit
             </Button>
