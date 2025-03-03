@@ -15,7 +15,7 @@
 | Feb 25          | 1 hour        | 6:00 - 7:00 PM   | Adding Tests to the API   |
 | Feb 27          | 4 hour        | 12:00 - 4:00 PM   | Adding Tests to the API   |
 | Feb 28          | 3 hour        | 12:00 - 4:00 PM   | Adding Tests to the API   |
-| Mar 3          | 1 hour        | 10:00 - 11:00 AM   | Adding Tests to the API   |
+| Mar 3          | 1 hour        | 10:00 - 11:00 AM   | Tweaking API   |
 | **Total Time**  | 10 hour
 
 
