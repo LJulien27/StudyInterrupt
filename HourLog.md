@@ -28,4 +28,4 @@
 | Feb 26          | 4 hours         | 11:30AM - 3:30PM  | Quiz Creation page |
 | Mar 2           | 5 hours         | 7:30PM -  12:30AM | Quiz view page     |
 | Mar 3           | 1 hours         | 12:00PM - 1:00PM  | Small changes      |
-| **Total Time**  | 3 hours
+| **Total Time**  | 10 hours
