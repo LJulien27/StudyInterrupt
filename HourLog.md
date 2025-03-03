@@ -38,7 +38,7 @@
 | Date            | Duration        | Time              | Task               |
 |-----------------|-----------------|-------------------|--------------------|
 | Feb 25          | 2 hours         | 8PM - 10PM  | Chrome Extension Tutorials |
-| Feb 26           | 3 hours         | 7:30PM -  12:30AM | Chrome Extension Tutorials |
+| Feb 26           | 3 hours         | 7:30PM -  10:30PM | Chrome Extension Tutorials |
 | Feb 28          | 1.5 hours         | 8:00PM - 9:30PM  | Chrome Extension tutorials |
 | Mar 3           | 1 hour       | 9:00AM - 10AM  | Chrome API Experimentation |
 | Mar 3           | 2.5 hours         | 1:00PM - 3:30PM  | Drafting Basic Extension |
