@@ -4,7 +4,6 @@ import QuestionModal from './QuestionModal/QuestionModal';
 import { Button, Form, FloatingLabel } from 'react-bootstrap';
 import Question, {QuestionType} from '../../types/Question';
 
-
 const QuizCreate = () => {
   const [quizName, setQuizName] = useState('');
   const [quizClass, setQuizClass] = useState('');
@@ -33,6 +32,15 @@ const QuizCreate = () => {
 
   const handleDeleteQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitQuiz = () => {
+    const quizObject = {
+      name: quizName,
+      class: quizClass,
+      questions: questions
+    };
+    console.log("Submitted Quiz:", quizObject);
   };
 
   const renderQuestion = (question: Question, index: number) => {
@@ -126,6 +134,9 @@ const QuizCreate = () => {
 
       <Button variant="primary" onClick={() => { setEditingIndex(null); setIsModalOpen(true); }}>
         Add Question
+      </Button>
+      <Button variant="success" className="ms-2" onClick={handleSubmitQuiz}>
+        Submit Quiz
       </Button>
 
       <QuestionModal

@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import QuizCreate from './components/QuizCreate/QuizCreate';
 import UserForm from './components/UserForm/UserForm';
+import Quiz from './components/Quiz/Quiz';
 
 const App: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ const App: React.FC = () => {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
+              <Nav.Link as={Link} to="/quiz">Quizzes</Nav.Link>
               <Nav.Link as={Link} to="/create-quiz">Create Your Own Quiz</Nav.Link>
               <Nav.Link as={Link} to="/user-form">User Parameters</Nav.Link>
             </Nav>
@@ -23,6 +25,7 @@ const App: React.FC = () => {
 
       <Container>
         <Routes>
+          <Route path="/quiz" element={<Quiz />} />
           <Route path="/create-quiz" element={<QuizCreate />} />
           <Route path="/user-form" element={<UserForm />} />
         </Routes>
