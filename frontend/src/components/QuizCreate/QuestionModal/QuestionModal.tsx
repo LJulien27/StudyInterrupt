@@ -29,6 +29,9 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
   const [rightOptions, setRightOptions] = useState(['']);
   const [associations, setAssociations] = useState<Associations>({});
 
+  const [validated, setValidated] = useState(false);
+  const [invalidAssociations, setInvalidAssociations] = useState<string[]>([]);
+
   // Load data when editing an existing question
   useEffect(() => {
     if (editingQuestion) {
@@ -36,12 +39,23 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       setQuestion(editingQuestion.text);
       setBody(editingQuestion.body);
       setAnswer(editingQuestion.answer);
+      if(editingQuestion.type === QuestionType.ASSOCIATION){
+        setLeftOptions(editingQuestion.body.split('&!!&'));
+        setRightOptions(editingQuestion.answer.split('&!!&'));
+        setAssociations(Object.fromEntries(editingQuestion.body.split('&!!&').map((key, i) => [key, editingQuestion.answer.split('&!!&')[i]])));
+      } else if(editingQuestion.type === QuestionType.FILLBLANK){
+        setQuestionEnd(editingQuestion.body);
+      }
     } else {
       // Reset to default when adding a new question
       setQuestionType(defaultQuestion.type);
       setQuestion(defaultQuestion.text);
       setBody(defaultQuestion.body);
       setAnswer(defaultQuestion.answer);
+      setQuestionEnd('');
+      setAssociations({});
+      setLeftOptions(['']);
+      setRightOptions(['']);
     }
   }, [editingQuestion, show]);
 
@@ -69,41 +83,49 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
   */
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    
-    
+
     if (questionType === QuestionType.ASSOCIATION) {
 
+      const invalidAssociationsTemp: string[] = [];
       // Check if the associations are complete
-      for(const option in leftOptions) {
+      for (const option in leftOptions) {
         if (!associations[leftOptions[option]]) {
-          alert('Please select an association for each option');
-          console.log("Associations are incomplete");
-          return;
+          invalidAssociationsTemp.push(leftOptions[option]);
         }
       }
 
-      onSave({ type: questionType, text: question, body: leftOptions.join('&!!&'), answer: rightOptions.join('&!!&') });
+      setInvalidAssociations(invalidAssociationsTemp);
+
+      if (invalidAssociationsTemp.length > 0) {
+        return;
+      }
+
+      setValidated(true);
+      const leftOptionsSave = Object.keys(associations);
+      const rightOptionsSave = Object.values(associations);
+      onSave({ type: questionType, text: question, body: leftOptionsSave.join('&!!&'), answer: rightOptionsSave.join('&!!&') });
     }
     else if (questionType === QuestionType.FILLBLANK) {
+      setValidated(true);
       onSave({ type: questionType, text: question, body: questionEnd, answer });
     }
     else {
       // Ensure the body has at least two options
-    const options = body.split('&!!&');
-    if (options.length < 2) {
-      alert('Please add at least two options');
-      return;
-    }
+      const options = body.split('&!!&');
+      if (options.length < 2) {
+        alert('Please add at least two options');
+        return;
+      }
 
-    // Ensure an answer exists among the options
-    const answers = answer.split('&!!&');
-    const validAnswers = answers.filter(ans => options.includes(ans));
-    if (validAnswers.length < 1) {
-      alert('Please select at least one valid answer');
-      return;
-    }
-
-      onSave({ type: questionType, text: question, body, answer });
+      // Ensure an answer exists among the options
+      const answers = answer.split('&!!&');
+      const validAnswers = answers.filter(ans => options.includes(ans));
+      if (validAnswers.length < 1) {
+        alert('Please select at least one valid answer');
+        return;
+      }
+        setValidated(true);
+        onSave({ type: questionType, text: question, body, answer });
     }
   };
 
@@ -112,6 +134,9 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
     setBody(defaultQuestion.body);
     setAnswer(defaultQuestion.answer);
     setQuestionEnd('');
+    setAssociations({});
+    setLeftOptions(['']);
+    setRightOptions(['']);
   };
 
   const handleAddAssociationOption = () => {
@@ -146,6 +171,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
     newAssociations[leftOption] = rightOption;
   
     setAssociations(newAssociations);
+    setInvalidAssociations(invalidAssociations.filter(option => option !== leftOption));
   };
 
   return (
@@ -154,7 +180,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
         <Modal.Title>Question</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <form onSubmit={handleSubmit}>
+        <Form noValidate validated={validated} onSubmit={handleSubmit}>
         <Form.Select className="mb-2" value={questionType} onChange={(e) => {
           setQuestionType(Number(e.target.value));
           if (questionType < 3){
@@ -169,11 +195,14 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
           <FloatingLabel controlId="questionText" label="Question" className="mb-3">
             <Form.Control
               type="text"
-              placeholder="Enter question"
+              placeholder="Enter prefix statement"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               required
             />
+            <Form.Control.Feedback type="invalid">
+              Please provide a valid question.
+            </Form.Control.Feedback>
           </FloatingLabel>
           {questionType === QuestionType.FILLBLANK && (
             <div>
@@ -185,16 +214,22 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                   onChange={(e) => setAnswer(e.target.value)}
                   required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    Please provide a valid answer.
+                  </Form.Control.Feedback>
                </FloatingLabel>
                <div/>
                <FloatingLabel controlId="questionEnd" label="Question End" className="mb-3">
                 <Form.Control
                   type="text"
-                  placeholder="Enter question end"
+                  placeholder="Enter suffix statement"
                   value={questionEnd}
                   onChange={(e) => setQuestionEnd(e.target.value)}
                   required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    Please provide a valid end to your question.
+                  </Form.Control.Feedback>
                </FloatingLabel>
                 <div/>
                 <FloatingLabel controlId="Preview" label="Preview" className="mb-3">
@@ -214,13 +249,16 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
               <label>Left Options:</label>
               {leftOptions.map((option, index) => (
                 <FloatingLabel key={index} controlId={`leftOption-${index}`} label={`Left Option ${index + 1}`} className="mb-3">
-                <Form.Control
-                  type="text"
-                  value={option}
-                  onChange={(e) => handleLeftOptionChange(index, e.target.value)}
-                  required
-                />
-              </FloatingLabel>
+                  <Form.Control
+                    type="text"
+                    value={option}
+                    onChange={(e) => handleLeftOptionChange(index, e.target.value)}
+                    required
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    Please provide a valid lefthand option.
+                  </Form.Control.Feedback>
+                </FloatingLabel>
               ))}
             </div>
             <div>
@@ -233,11 +271,14 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                   onChange={(e) => handleRightOptionChange(index, e.target.value)}
                   required
                 />
+                <Form.Control.Feedback type="invalid">
+                  Please provide a valid righthand option.
+                </Form.Control.Feedback>
               </FloatingLabel>
               ))}
               <Button type="button" onClick={handleAddAssociationOption}>
-                  Add Association Option
-                </Button>
+                Add Association Option
+              </Button>
             </div>
             <div>
                 <label>Associations:</label>
@@ -247,6 +288,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                     <Form.Select
                       value={associations[leftOption] || ''}
                       onChange={(e) => handleAssociationChange(leftOption, e.target.value)}
+                      isInvalid={invalidAssociations.includes(leftOption)}
                     >
                       <option value="">Select</option>
                       {rightOptions.map((rightOption, idx) => (
@@ -255,6 +297,9 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
                         </option>
                       ))}
                     </Form.Select>
+                    <Form.Control.Feedback type="invalid">
+                      Please select a valid association.
+                    </Form.Control.Feedback>
                   </div>
                 ))}
               </div>
@@ -309,7 +354,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
               Reset
             </Button>
           </div>
-        </form>
+        </Form>
       </Modal.Body>
     </Modal>
   );
