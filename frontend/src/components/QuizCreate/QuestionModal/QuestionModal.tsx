@@ -155,7 +155,11 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       </Modal.Header>
       <Modal.Body>
         <form onSubmit={handleSubmit}>
-        <Form.Select className="mb-2" value={questionType} onChange={(e) => setQuestionType(Number(e.target.value))}>
+        <Form.Select className="mb-2" value={questionType} onChange={(e) => {
+          setQuestionType(Number(e.target.value));
+          if (questionType < 3){
+            setAnswer('');
+          }}}>
             <option value={QuestionType.SINGLESELECT}>Single Select Multiple Choice</option>
             <option value={QuestionType.MULTISELECT}>Multi Select Multiple Choice</option>
             <option value={QuestionType.FILLBLANK}>Fill in the Blank</option>
