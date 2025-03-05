@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { QuizCreateWrapper } from './QuizCreate.styled';
 import QuestionModal from './QuestionModal/QuestionModal';
-import { Button, Form, FloatingLabel } from 'react-bootstrap';
+import { Button, Form, FloatingLabel, Card } from 'react-bootstrap';
 import Question, {QuestionType} from '../../types/Question';
 
 const QuizCreate = () => {
@@ -121,7 +121,9 @@ const QuizCreate = () => {
       <ul>
         {questions.map((q, index) => (
           <li key={index} className="mb-2">
-            {renderQuestion(q, index)}
+            <Card>
+              <Card.Body>{renderQuestion(q, index)}</Card.Body>
+            </Card>
             <Button variant="warning" size="sm" onClick={() => handleEditQuestion(index)} className="ms-2">
               Edit
             </Button>
