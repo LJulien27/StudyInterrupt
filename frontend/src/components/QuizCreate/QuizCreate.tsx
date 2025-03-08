@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { QuizCreateWrapper } from './QuizCreate.styled';
 import QuestionModal from './QuestionModal/QuestionModal';
 import { Button, Form, FloatingLabel, Card } from 'react-bootstrap';
@@ -34,13 +35,30 @@ const QuizCreate = () => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  const handleSubmitQuiz = () => {
+  const handleSubmitQuiz = async () => {
     const quizObject = {
       name: quizName,
       class: quizClass,
       questions: questions
     };
-    console.log("Submitted Quiz:", quizObject);
+    try {
+      const QuizResponse = await axios.post('http://localhost:27017/users/1/quizzes', quizObject);
+      console.log(QuizResponse.data);
+      for (let i = 0; i < questions.length; i++) {
+        console.log("Submitting question: ", questions[i]);
+        let question = questions[i];
+        let questionObject = {
+          type: question.type,
+          text: question.text,
+          body: question.body,
+          answer: question.answer
+        };
+        let response = await axios.post('http://localhost:27017/quizzes/'+QuizResponse.data.id+'/questions', questionObject);
+        console.log(response.data);
+      }
+    } catch (error) {
+      console.error("Error submitting quiz: ", error);
+    }
   };
 
   const renderQuestion = (question: Question, index: number) => {
