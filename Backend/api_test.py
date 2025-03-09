@@ -1,0 +1,786 @@
+from datetime import datetime
+
+import pytest
+from bson import ObjectId
+from fastapi.testclient import TestClient
+from unittest.mock import patch
+import mongomock
+from pymongo.errors import PyMongoError
+
+from main import app  # Import your FastAPI app
+import crud
+from models import User
+
+# Set up test client
+client = TestClient(app)
+
+# Mock MongoDB connection
+@pytest.fixture(scope="function")
+def mock_db():
+    """Create a mock database for testing."""
+    mock_client = mongomock.MongoClient()
+    mock_db = mock_client["test_db"]
+
+    # Insert mock users
+    mock_db.users.insert_many([
+        {"_id": ObjectId("65b8ba98a6c4a46585522b55"), "username": "Andre", "email": "andre@example.com"},
+        {"_id": ObjectId("65a69cd9185476aab56284df"), "username": "John", "email": "john@example.com"},
+    ])
+
+    # Insert mock sessions
+    mock_db.sessions.insert_many([
+        {"_id": ObjectId("65c8ba98a6c4a46585522b56"), "participants": [{"id": "65b8ba98a6c4a46585522b55", "username": "Andre"}], "creator_id": "65b8ba98a6c4a46585522b55",
+         "quiz_id": "65f69cd9185476aab56284d1", "interrupts": [{"_id": "65f69cd9185476aab56284d4", "creator_id": "65b8ba98a6c4a46585522b55", "session_id": "65c8ba98a6c4a46585522b56"}] },
+        {"_id": ObjectId("65d69cd9185476aab56284d2"), "participants": [{"id": "65a69cd9185476aab56284df", "username": "John"}] },
+    ])
+
+    # Insert mock contests
+    mock_db.contests.insert_many([
+        {"_id": ObjectId("65e8ba98a6c4a46585522b57"), "participants": [{"id": "65b8ba98a6c4a46585522b55", "username": "Andre"}], "session_id": "65c8ba98a6c4a46585522b56"},
+    ])
+
+    # Insert mock quizzes
+    mock_db.quizzes.insert_many([
+        {"_id": ObjectId("65f69cd9185476aab56284d1"), "creator_id": "65b8ba98a6c4a46585522b55", "session_id": "65c8ba98a6c4a46585522b56"},
+    ])
+
+    # Insert mock questions (Fixed invalid ObjectId)
+    mock_db.questions.insert_many([
+        {"_id": ObjectId("65f69cd9185476aab56284d3"), "quiz_id": "65f69cd9185476aab56284d1", "title": "test_title", "session_id": "65c8ba98a6c4a46585522b56"},
+    ])
+
+    # Insert mock interrupts (Fixed invalid ObjectId)
+    mock_db.interrupts.insert_many([
+        {"_id": ObjectId("65f69cd9185476aab56284d4"), "creator_id": "65b8ba98a6c4a46585522b55", "session_id": "65c8ba98a6c4a46585522b56"},
+    ])
+
+    return mock_db
+
+# Patch MongoDB connection in CRUD functions
+@pytest.fixture(autouse=True)
+def patch_db(mock_db):
+    with patch.object(crud, "users_collection", mock_db.users):
+        with patch.object(crud, "sessions_collection", mock_db.sessions):
+            with patch.object(crud, "contests_collection", mock_db.contests):
+                with patch.object(crud, "quizzes_collection", mock_db.quizzes):
+                    with patch.object(crud, "interrupts_collection", mock_db.interrupts):
+                        with patch.object(crud, "questions_collection", mock_db.questions):
+                            yield
+
+# Sample valid and invalid IDs
+VALID_USER_ID = "65b8ba98a6c4a46585522b55"
+INVALID_USER_ID = "1234567890abcdef12345678"
+
+VALID_SESSION_ID = "65c8ba98a6c4a46585522b56"
+INVALID_SESSION_ID = "65f69cd9185476aab56284d5"
+
+VALID_QUIZ_ID = "65f69cd9185476aab56284d1"
+INVALID_QUIZ_ID = "65f69cd9185476aab56284d6"
+
+VALID_QUESTION_ID = "65f69cd9185476aab56284d3"
+INVALID_QUESTION_ID = "65f69cd9185476aab56284d7"
+
+VALID_CONTEST_ID = "65e8ba98a6c4a46585522b57"
+INVALID_CONTEST_ID = "65f69cd9185476aab56284d8"
+
+VALID_INTERRUPT_ID = "65f69cd9185476aab56284d4"
+INVALID_INTERRUPT_ID = "65f69cd9185476aab56284d9"
+
+
+#GET requests
+@pytest.mark.parametrize("user_id, expected_username, expected_email", [
+    ("65b8ba98a6c4a46585522b55", "Andre", "andre@example.com"),
+    ("65a69cd9185476aab56284df", "John", "john@example.com"),
+])
+def test_get_user_details(user_id, expected_username, expected_email):
+    """Test if the retrieved user's username and email are correct."""
+    response = client.get(f"/users/{user_id}")
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {user_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    user_data = response.json()
+    assert "username" in user_data, f"Username missing in response for {user_id}"
+    assert "email" in user_data, f"Email missing in response for {user_id}"
+
+    assert user_data["username"] == expected_username, f"Incorrect username for {user_id}"
+    assert user_data["email"] == expected_email, f"Incorrect email for {user_id}"
+
+@pytest.mark.parametrize("user_id, expected_sessions", [
+    (VALID_USER_ID, [{"id": VALID_SESSION_ID, "participants": [{"id": VALID_USER_ID, "username": "Andre"}], "quiz_id": "65f69cd9185476aab56284d1", "interrupts": [{"_id": ObjectId("65f69cd9185476aab56284d4"), "creator_id": "65b8ba98a6c4a46585522b55", "session_id": "65c8ba98a6c4a46585522b56"}] }]),
+])
+def test_get_user_sessions_details(user_id, expected_sessions):
+    """Test if the retrieved user sessions contain correct details."""
+    response = client.get(f"/users/{user_id}/sessions")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {user_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    sessions_data = response.json()["sessions"]
+    assert isinstance(sessions_data, list), f"Expected list, got {type(sessions_data)} for {user_id}"
+
+    for expected_session in expected_sessions:
+        session = next((s for s in sessions_data if s["_id"] == expected_session["id"]), None)
+        assert session, f"Session {expected_session['id']} not found for user {user_id}"
+        assert "participants" in session, f"Participants missing in session {expected_session['id']}"
+        assert session["participants"] == expected_session["participants"], f"Incorrect participants in session {expected_session['id']}"
+
+@pytest.mark.parametrize("user_id, expected_contests", [
+    (VALID_USER_ID, [{"id": VALID_CONTEST_ID, "participants": [{'id': '65b8ba98a6c4a46585522b55', 'username': 'Andre'}]}]),
+])
+def test_get_user_contests_details(user_id, expected_contests):
+    """Test if the retrieved user contests contain correct details."""
+    response = client.get(f"/users/{user_id}/contests")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {user_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    contests_data = response.json()["contests"]
+    assert isinstance(contests_data, list), f"Expected list, got {type(contests_data)} for {user_id}"
+
+    for expected_contest in expected_contests:
+        contest = next((c for c in contests_data if c["_id"] == expected_contest["id"]), None)
+        assert contest, f"Contest {expected_contest['id']} not found for user {user_id}"
+        assert "participants" in contest, f"Participants missing in contest {expected_contest['id']}"
+        assert contest["participants"] == expected_contest["participants"], f"Incorrect participants in contest {expected_contest['id']}"
+
+@pytest.mark.parametrize("user_id, expected_interrupts", [
+    (VALID_USER_ID, [{"id": VALID_INTERRUPT_ID, "creator_id": VALID_USER_ID}]),
+])
+def test_get_user_interrupts_details(user_id, expected_interrupts):
+    """Test if the retrieved user interrupts contain correct details."""
+    response = client.get(f"/users/{user_id}/interrupts")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {user_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    interrupts_data = response.json()["interrupts"]
+    assert isinstance(interrupts_data, list), f"Expected list, got {type(interrupts_data)} for {user_id}"
+
+    for expected_interrupt in expected_interrupts:
+        interrupt = next((i for i in interrupts_data if i["_id"] == expected_interrupt["id"]), None)
+        assert interrupt, f"Interrupt {expected_interrupt['id']} not found for user {user_id}"
+        assert "creator_id" in interrupt, f"Creator ID missing in interrupt {expected_interrupt['id']}"
+        assert interrupt["creator_id"] == expected_interrupt["creator_id"], f"Incorrect creator ID in interrupt {expected_interrupt['id']}"
+
+@pytest.mark.parametrize("user_id, expected_quizzes", [
+    (VALID_USER_ID, [{"id": VALID_QUIZ_ID, "creator_id": VALID_USER_ID}]),
+])
+def test_get_user_quizzes_details(user_id, expected_quizzes):
+    """Test if the retrieved user quizzes contain correct details."""
+    response = client.get(f"/users/{user_id}/quizzes")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {user_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    quizzes_data = response.json()["quizzes"]
+    assert isinstance(quizzes_data, list), f"Expected list, got {type(quizzes_data)} for {user_id}"
+
+    for expected_quiz in expected_quizzes:
+        quiz = next((q for q in quizzes_data if q["_id"] == expected_quiz["id"]), None)
+        assert quiz, f"Quiz {expected_quiz['id']} not found for user {user_id}"
+        assert "creator_id" in quiz, f"Creator ID missing in quiz {expected_quiz['id']}"
+        assert quiz["creator_id"] == expected_quiz["creator_id"], f"Incorrect creator ID in quiz {expected_quiz['id']}"
+
+@pytest.mark.parametrize("session_id, expected_contests", [
+    (VALID_SESSION_ID, [{"id": VALID_CONTEST_ID, "session_id": VALID_SESSION_ID}]),
+])
+
+def test_get_session_contests_details(session_id, expected_contests):
+    """Test if the retrieved session contests contain correct details."""
+    response = client.get(f"/sessions/{session_id}/contests")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {session_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    contests_data = response.json()["contests"]
+    assert isinstance(contests_data, list), f"Expected list, got {type(contests_data)} for {session_id}"
+
+    for expected_contest in expected_contests:
+        contest = next((c for c in contests_data if c["_id"] == expected_contest["id"]), None)
+        assert contest, f"Contest {expected_contest['id']} not found for session {session_id}"
+        assert "session_id" in contest, f"Session ID missing in contest {expected_contest['id']}"
+        assert contest["session_id"] == expected_contest["session_id"], f"Incorrect session ID in contest {expected_contest['id']}"
+
+@pytest.mark.parametrize("session_id, expected_quizzes", [
+    (VALID_SESSION_ID, [{"id": VALID_QUIZ_ID, "session_id": VALID_SESSION_ID}]),
+])
+def test_get_session_quizzes_details(session_id, expected_quizzes):
+    """Test if the retrieved session quizzes contain correct details."""
+    response = client.get(f"/sessions/{session_id}/quizzes")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {session_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    quizzes_data = response.json()["quizzes"]
+    assert isinstance(quizzes_data, list), f"Expected list, got {type(quizzes_data)} for {session_id}"
+
+    for expected_quiz in expected_quizzes:
+        quiz = next((q for q in quizzes_data if q["_id"] == expected_quiz["id"]), None)
+        assert quiz, f"Quiz {expected_quiz['id']} not found for session {session_id}"
+        assert "creator_id" in quiz, f"Creator ID missing in quiz {expected_quiz['id']}"
+        assert quiz["session_id"] == expected_quiz["session_id"], f"Incorrect session ID in quiz {expected_quiz['id']}"
+
+@pytest.mark.parametrize("session_id, expected_interrupts", [
+    (VALID_SESSION_ID, [{"id": VALID_INTERRUPT_ID, "session_id": VALID_SESSION_ID}]),
+])
+def test_get_session_interrupts_details(session_id, expected_interrupts):
+    """Test if the retrieved session interrupts contain correct details."""
+    response = client.get(f"/sessions/{session_id}/interrupts")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {session_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    interrupts_data = response.json()["interrupts"]
+    assert isinstance(interrupts_data, list), f"Expected list, got {type(interrupts_data)} for {session_id}"
+
+    for expected_interrupt in expected_interrupts:
+        interrupt = next((i for i in interrupts_data if i["_id"] == expected_interrupt["id"]), None)
+        assert interrupt, f"Interrupt {expected_interrupt['id']} not found for session {session_id}"
+        assert "session_id" in interrupt, f"Session ID missing in interrupt {expected_interrupt['id']}"
+        assert interrupt["session_id"] == expected_interrupt["session_id"], f"Incorrect session ID in interrupt {expected_interrupt['id']}"
+
+@pytest.mark.parametrize("quiz_id, expected_quiz", [
+    (VALID_QUIZ_ID, {"id": VALID_QUIZ_ID, "creator_id": VALID_USER_ID}),
+])
+def test_get_quiz_details(quiz_id, expected_quiz):
+    """Test if the retrieved quiz contains correct details."""
+    response = client.get(f"/quizzes/{quiz_id}")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {quiz_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    quiz_data = response.json()
+    assert quiz_data, f"Empty response for quiz {quiz_id}"
+
+    assert "_id" in quiz_data, f"ID missing in quiz {quiz_id}"
+    assert quiz_data["_id"] == expected_quiz["id"], f"Incorrect ID in quiz {quiz_id}"
+
+    assert "creator_id" in quiz_data, f"Creator ID missing in quiz {quiz_id}"
+    assert quiz_data["creator_id"] == expected_quiz["creator_id"], f"Incorrect creator ID in quiz {quiz_id}"
+
+
+@pytest.mark.parametrize("quiz_id, expected_questions", [
+    (VALID_QUIZ_ID, [{"id": VALID_QUESTION_ID, "quiz_id": VALID_QUIZ_ID, "title": "test_title"}]),
+])
+def test_get_quiz_questions_details(quiz_id, expected_questions):
+    """Test if the retrieved quiz questions contain correct details."""
+    response = client.get(f"/quizzes/{quiz_id}/questions")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} for {quiz_id}"
+    assert response.headers["content-type"] == "application/json"
+
+    questions_data = response.json()["questions"]
+    assert isinstance(questions_data, list), f"Expected list, got {type(questions_data)} for {quiz_id}"
+
+    for expected_question in expected_questions:
+        question = next((q for q in questions_data if q["_id"] == expected_question["id"]), None)
+        assert question, f"Question {expected_question['id']} not found for quiz {quiz_id}"
+
+        assert "quiz_id" in question, f"Quiz ID missing in question {expected_question['id']}"
+        assert question["quiz_id"] == expected_question[
+            "quiz_id"], f"Incorrect quiz ID in question {expected_question['id']}"
+
+        assert "title" in question, f"Title missing in question {expected_question['id']}"
+        assert question["title"] == expected_question["title"], f"Incorrect title in question {expected_question['id']}"
+
+
+@pytest.mark.parametrize("endpoint, expected_status", [
+    ("/users/", 200),
+])
+def test_get_valid_requests(endpoint, expected_status):
+    """Test GET requests for valid IDs."""
+    response = client.get(endpoint)
+    assert response.status_code == expected_status, f"Failed on {endpoint}"
+    assert response.headers["content-type"] == "application/json"
+    assert response.json(), f"Empty response on {endpoint}"
+
+
+
+@pytest.mark.parametrize("endpoint", [
+    f"/users/{INVALID_USER_ID}",
+    f"/users/{INVALID_USER_ID}/sessions",
+    f"/users/{INVALID_USER_ID}/contests",
+    f"/users/{INVALID_USER_ID}/interrupts",
+    f"/users/{INVALID_USER_ID}/quizzes",
+    f"/sessions/{INVALID_SESSION_ID}/contests",
+    f"/sessions/{INVALID_SESSION_ID}/quizzes",
+    f"/session/{INVALID_SESSION_ID}/interrupts",
+    f"/quizzes/{INVALID_QUIZ_ID}",
+    f"/quizzes/{INVALID_QUIZ_ID}/questions",
+])
+def test_get_invalid_requests(endpoint):
+    """Test GET requests with invalid IDs."""
+    response = client.get(endpoint)
+    assert response.status_code == 404, f"Expected 404 on {endpoint}, got {response.status_code}"
+
+INVALID_ID = "invalid"
+
+@pytest.mark.parametrize("endpoint", [
+    f"/users/{INVALID_ID}",
+    f"/users/{INVALID_ID}/sessions",
+    f"/users/{INVALID_ID}/contests",
+    f"/users/{INVALID_ID}/interrupts",
+    f"/users/{INVALID_ID}/quizzes",
+    f"/sessions/{INVALID_ID}/contests",
+    f"/sessions/{INVALID_ID}/quizzes",
+    f"/sessions/{INVALID_ID}/interrupts",
+    f"/quizzes/{INVALID_ID}",
+    f"/quizzes/{INVALID_ID}/questions",
+])
+def test_get_invalid_id_requests(endpoint):
+    """Test GET requests with invalid IDs."""
+    response = client.get(endpoint)
+    assert response.status_code == 400, f"Expected 400 on {endpoint}, got {response.status_code}"
+
+
+# POST requests
+
+def test_add_user_success(mock_db):
+    mock_user = {
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "securepassword",
+        "created_at": datetime.now().isoformat(),
+        "default_session_length": 180,
+        "default_min_range": 30,
+        "default_max_range": 30
+    }
+
+    response = client.post("/users", json=mock_user)
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+
+    assert response_data["username"] == mock_user["username"]
+    assert response_data["email"] == mock_user["email"]
+    #assert "password" not in response_data  # Ensure password is not exposed in response
+
+def test_add_user_missing_fields():
+    incomplete_user = {
+        "username": "",
+        "email": "test@example.com",
+        "password": "securepassword",
+        "created_at": datetime.now().isoformat(),
+        "default_session_length": 180,
+        "default_min_range": 30,
+        "default_max_range": 30
+    }
+    response = client.post("/users", json=incomplete_user)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Username, email, and password are required"
+
+
+def test_add_user_duplicate_email(mock_db):
+    mock_user = {
+        "username": "testuser",
+        "email": "andre@example.com",
+        "password": "securepassword",
+        "created_at": datetime.now().isoformat(),
+        "default_session_length": 180,
+        "default_min_range": 30,
+        "default_max_range": 30
+    }
+
+    response = client.post("/users", json=mock_user)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email already registered"
+
+def test_create_user_session_success(mock_db):
+
+
+    # Create a mock session
+    mock_session = {
+        "start_time": datetime.now().isoformat(),
+        "end_time": datetime.now().isoformat(),
+        "creator_id": VALID_USER_ID,
+        "interrupts": [],
+        "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
+        "quiz_id": None
+    }
+
+    # Send POST request
+    response = client.post(f"/users/{VALID_USER_ID}/sessions", json=mock_session)
+
+    # Assertions
+    assert response.status_code == 201
+    data = response.json()
+    assert "creator_id" in data
+    assert data["creator_id"] == VALID_USER_ID
+    assert "start_time" in data
+    assert "end_time" in data
+    assert "interrupts" in data
+    assert "participants" in data
+
+def test_create_contest_success(mock_db):
+
+    # Create a mock contest
+    mock_contest = {
+        "grades": ["A", "B", "C"],
+        "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
+        "session_id": VALID_SESSION_ID,
+    }
+
+    # Send POST request
+    response = client.post(f"/users/{VALID_USER_ID}/contests", json=mock_contest)
+
+    # Assertions
+    assert response.status_code == 201
+    data = response.json()
+    assert "session_id" in data
+    assert data["session_id"] == VALID_SESSION_ID
+    assert "grades" in data
+    assert "participants" in data
+    assert len(data["participants"]) > 0
+    assert data["participants"][0]["id"] == VALID_USER_ID
+
+def test_create_quiz_success(mock_db):
+    # Create a mock quiz
+    mock_quiz = {
+        "title": "Sample Quiz",
+        "creator_id": VALID_USER_ID,
+        "session_id": VALID_SESSION_ID,
+        "created_at": datetime.now().isoformat(),
+        "questions": [
+            "65f69cd9185476aab56284d3",  # Example question ID
+            "65f69cd9185476aab56284d4"
+        ]
+    }
+
+    # Send POST request
+    response = client.post(f"/users/{VALID_USER_ID}/quizzes", json=mock_quiz)
+
+    # Assertions
+    assert response.status_code == 201
+    data = response.json()
+    assert "title" in data
+    assert data["title"] == "Sample Quiz"
+    assert "creator_id" in data
+    assert data["creator_id"] == VALID_USER_ID
+    assert "session_id" in data
+    assert data["session_id"] == VALID_SESSION_ID
+    assert "questions" in data
+    assert len(data["questions"]) == 2
+    assert data["questions"] == ["65f69cd9185476aab56284d3", "65f69cd9185476aab56284d4"]
+
+def test_create_interrupt_success(mock_db):
+
+    # Create a mock interrupt
+    mock_interrupt = {
+        "type": 1,
+        "link": "http://example.com",
+        "interrupt_time": datetime.now().isoformat(),
+        "creator_id": VALID_USER_ID,
+        "session_id": VALID_SESSION_ID  # Optional session_id (could be None for no session association)
+    }
+
+    # Send POST request
+    response = client.post(f"/sessions/{VALID_SESSION_ID}/interrupts", json=mock_interrupt)
+
+    # Assertions
+    assert response.status_code == 201
+    data = response.json()
+    assert "type" in data
+    assert data["type"] == 1
+    assert "link" in data
+    assert data["link"] == "http://example.com"
+    assert "interrupt_time" in data
+    assert data["interrupt_time"] == mock_interrupt["interrupt_time"]
+    assert "creator_id" in data
+    assert data["creator_id"] == VALID_USER_ID
+    assert "session_id" in data
+    assert data["session_id"] == VALID_SESSION_ID
+
+def test_create_question_success(mock_db):
+
+    # Create a mock question
+    mock_question = {
+        "type": 1,
+        "title": "What is FastAPI?",
+        "body": "Explain FastAPI and its benefits.",
+        "answer": "FastAPI is a modern web framework for building APIs with Python.",
+        "quiz_id": VALID_QUIZ_ID # Ensure the quiz ID exists in the mock DB
+    }
+
+    # Send POST request
+    response = client.post(f"/quizzes/{VALID_QUIZ_ID}/questions", json=mock_question)
+
+    # Assertions
+    assert response.status_code == 201
+    data = response.json()
+    assert "type" in data
+    assert data["type"] == 1
+    assert "title" in data
+    assert data["title"] == "What is FastAPI?"
+    assert "body" in data
+    assert data["body"] == "Explain FastAPI and its benefits."
+    assert "answer" in data
+    assert data["answer"] == "FastAPI is a modern web framework for building APIs with Python."
+    assert "quiz_id" in data
+    assert data["quiz_id"] == VALID_QUIZ_ID
+
+
+#PUT tests
+
+def test_update_user_success(mock_db):
+    mock_user = {
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "securepassword",
+        "created_at": datetime.now().isoformat(),
+        "default_session_length": 180,
+        "default_min_range": 30,
+        "default_max_range": 30
+    }
+
+    response = client.put(f"/users/{VALID_USER_ID}", json=mock_user)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "User updated successfully"
+
+def test_update_session_success(mock_db):
+    mock_session = {
+        "start_time": datetime.now().isoformat(),
+        "end_time": datetime.now().isoformat(),
+        "creator_id": VALID_USER_ID,
+        "interrupts": [],
+        "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
+        "quiz_id": None
+    }
+
+    response = client.put(f"/sessions/{VALID_SESSION_ID}", json=mock_session)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Session updated successfully"
+
+def test_update_contest_success(mock_db):
+    mock_contest = {
+        "grades": ["A", "B", "C"],
+        "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
+        "session_id": VALID_SESSION_ID,
+    }
+    response = client.put(f"/contests/{VALID_CONTEST_ID}", json=mock_contest)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Contest updated successfully"
+
+def test_update_quiz_success(mock_db):
+    mock_quiz = {
+        "title": "Sample Quiz",
+        "creator_id": VALID_USER_ID,
+        "session_id": None,
+        "created_at": datetime.now().isoformat(),
+        "questions": [
+            "65f69cd9185476aab56284d3",  # Example question ID
+            "65f69cd9185476aab56284d4"
+        ]
+    }
+
+    response = client.put(f"/quizzes/{VALID_QUIZ_ID}", json=mock_quiz)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Quiz updated successfully"
+
+def test_update_interrupt_success(mock_db):
+
+    mock_interrupt = {
+        "type": 1,
+        "link": "http://example.com",
+        "interrupt_time": datetime.now().isoformat(),
+        "creator_id": VALID_USER_ID,
+        "session_id": VALID_SESSION_ID  # Optional session_id (could be None for no session association)
+    }
+
+    response = client.put(f"/interrupts/{VALID_INTERRUPT_ID}", json=mock_interrupt)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Interrupt updated successfully"
+
+def test_update_question_success(mock_db):
+
+    mock_question = {
+        "type": 1,
+        "title": "What is FastAPI?",
+        "body": "Explain FastAPI and its benefits.",
+        "answer": "FastAPI is a modern web framework for building APIs with Python.",
+        "quiz_id": VALID_QUIZ_ID
+    }
+
+    response = client.put(f"/questions/{VALID_QUESTION_ID}", json=mock_question)
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Question updated successfully"
+
+NEW_USERS = [{"id": "65a69cd9185476aab56284df", "username": "John"}]
+EXISTING_USER = [{"id": "65b8ba98a6c4a46585522b55", "username": "Andre"}]
+
+def test_add_users_to_contest_success():
+    """Test adding new users to an existing contest."""
+    response = client.patch(f"/contests/{VALID_CONTEST_ID}/add-users", json=NEW_USERS)
+    assert response.status_code == 200
+    assert response.json() == {"message": "Users added to contest successfully"}
+
+def test_add_users_already_exists():
+    """Test when all users are already in the contest."""
+    response = client.patch(f"/contests/{VALID_CONTEST_ID}/add-users", json=EXISTING_USER)
+    assert response.status_code == 200
+    assert response.json() == {"message": "No new users added (users may already exist in the contest)"}
+
+def test_add_users_invalid_contest_id():
+    """Test when contest ID format is invalid."""
+    response = client.patch(f"/contests/{INVALID_ID}/add-users", json=NEW_USERS)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid contest ID format"
+
+def test_add_users_contest_not_found(mock_db):
+    """Test when contest is not found."""
+    non_existent_contest_id = str(ObjectId())
+    response = client.patch(f"/contests/{non_existent_contest_id}/add-users", json=NEW_USERS)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Contest not found"
+
+def test_add_users_to_session_success():
+    """Test adding new users to an existing session."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-users", json=NEW_USERS)
+    assert response.status_code == 200
+    assert response.json() == {"message": "Users added to session successfully"}
+
+def test_add_users_session_already_exists():
+    """Test when all users are already in the session."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-users", json=EXISTING_USER)
+    assert response.status_code == 200
+    assert response.json() == {"message": "No new users added (users may already exist in the session)"}
+
+def test_add_users_invalid_session_id():
+    """Test when session ID format is invalid."""
+    response = client.patch(f"/sessions/{INVALID_ID}/add-users", json=NEW_USERS)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid session ID format"
+
+def test_add_users_session_not_found(mock_db):
+    """Test when session is not found."""
+    non_existent_session_id = str(ObjectId())
+    response = client.patch(f"/sessions/{non_existent_session_id}/add-users", json=NEW_USERS)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Session not found"
+
+def test_add_quiz_to_session_success():
+    """Test adding a quiz to an existing session."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-quiz/{VALID_QUIZ_ID}")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Quiz added to session successfully"}
+
+def test_add_quiz_invalid_session_id():
+    """Test when session ID format is invalid."""
+    response = client.patch(f"/sessions/{INVALID_ID}/add-quiz/{VALID_QUIZ_ID}")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid session ID format"
+
+def test_add_quiz_invalid_quiz_id():
+    """Test when quiz ID format is invalid."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-quiz/{INVALID_ID}")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid quiz ID format"
+
+def test_add_quiz_session_not_found(mock_db):
+    """Test when session is not found."""
+    non_existent_session_id = str(ObjectId())
+    response = client.patch(f"/sessions/{non_existent_session_id}/add-quiz/{VALID_QUIZ_ID}")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Session not found"
+
+def test_add_interrupt_to_session_success():
+    """Test successfully adding an interrupt to a session."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-interrupt/{VALID_INTERRUPT_ID}")
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "Interrupt added to session successfully"}
+
+def test_add_interrupt_to_session_invalid_session():
+
+    response = client.patch(f"/sessions/{INVALID_SESSION_ID }/add-interrupt/{VALID_INTERRUPT_ID}")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Session not found"}
+
+
+def test_add_interrupt_to_session_invalid_interrupt():
+    """Test adding a non-existent interrupt to a session."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-interrupt/{INVALID_INTERRUPT_ID}")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Interrupt not found"}
+
+def test_add_interrupt_to_session_invalid_session_id():
+    """Test passing an invalid session ID format."""
+    response = client.patch(f"/sessions/{INVALID_ID}/add-interrupt/{VALID_INTERRUPT_ID}")
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid session or interrupt ID format"}
+
+def test_add_interrupt_to_session_invalid_interrupt_id():
+    """Test passing an invalid interrupt ID format."""
+    response = client.patch(f"/sessions/{VALID_SESSION_ID}/add-interrupt/{INVALID_ID}")
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid session or interrupt ID format"}
+
+# DELETE tests
+def test_remove_user_from_contest_success():
+    """Test successfully removing users from a contest."""
+    response = client.delete(f"/contests/{VALID_CONTEST_ID}/remove-user/{VALID_USER_ID}",)
+    assert response.status_code == 200
+    assert response.json() == {"message": "User removed from contest successfully"}
+
+def test_remove_user_from_session_success():
+    """Test successfully removing users from a contest."""
+    response = client.delete(f"/sessions/{VALID_SESSION_ID}/remove-user/{VALID_USER_ID}", )
+    assert response.status_code == 200
+    assert response.json() == {"message": "User removed from session successfully"}
+
+def test_remove_quiz_from_session_success():
+    """Test successfully removing users from a contest."""
+    response = client.delete(f"/sessions/{VALID_SESSION_ID}/remove-quiz/{VALID_QUIZ_ID}", )
+    assert response.status_code == 200
+    assert response.json() == {"message": "Quiz removed from session successfully"}
+
+def test_remove_interrupt_from_session_success():
+    """Test successfully removing users from a contest."""
+    response = client.delete(f"/sessions/{VALID_SESSION_ID}/remove-interrupt/{VALID_INTERRUPT_ID}", )
+    assert response.status_code == 200
+    assert response.json() == {"message": "Interrupt removed from session successfully"}
+
+def test_delete_user_success(mock_db):
+    """Test successfully deleting a user and cleaning up related data."""
+    # Send the delete request
+    response = client.delete(f"/users/{VALID_USER_ID}")
+
+    # Assert successful deletion
+    assert response.status_code == 200
+    assert response.json() == {"message": "User deleted successfully"}
+
+    # Verify user is deleted
+    assert mock_db.users.find_one({"_id": ObjectId(VALID_USER_ID)}) is None
+
+    # Verify session is deleted
+    assert mock_db.sessions.find_one({"_id": ObjectId(VALID_SESSION_ID)}) is None
+
+    # Verify quiz is deleted
+    assert mock_db.quizzes.find_one({"_id": ObjectId(VALID_QUIZ_ID)}) is None
+
+    # Verify question is deleted
+    assert mock_db.questions.find_one({"_id": ObjectId(VALID_QUESTION_ID)}) is None
+"""
+def test_delete_session_success(mock_db):
+    Test successfully deleting a user and cleaning up related data.
+    # Send the delete request
+    response = client.delete(f"/users/{VALID_SESSION_ID}")
+
+    # Assert successful deletion
+    assert response.status_code == 200
+    assert response.json() == {"message": "Session deleted successfully"}
+
+    # Verify user is deleted
+    assert mock_db.users.find_one({"_id": ObjectId(VALID_USER_ID)}) is None
+
+    # Verify session is deleted
+    assert mock_db.sessions.find_one({"_id": ObjectId(VALID_SESSION_ID)}) is None
+
+    # Verify quiz is deleted
+    assert mock_db.quizzes.find_one({"_id": ObjectId(VALID_QUIZ_ID)}) is None
+
+    # Verify question is deleted
+    assert mock_db.questions.find_one({"_id": ObjectId(VALID_QUESTION_ID)}) is None
+"""

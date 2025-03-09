@@ -39,7 +39,7 @@ async def get_sessions_contest(id: str):
 async def get_sessions_quizzes(id: str):
     return crud.get_sessions_quizzes(id)
 
-@app.get("/session/{id}/interrupts")
+@app.get("/sessions/{id}/interrupts")
 async def get_session_interrupts(id: str):
     return crud.get_sessions_interrupts(id)
 
@@ -111,7 +111,7 @@ async def patch_add_users_to_contest(id: str, users: list[Username]):
 async def patch_add_users_to_session(id: str, users: list[Username]):
     return add_users_to_session(id, users)
 
-@app.patch("/sessions/{id}/add-quiz", status_code=200)
+@app.patch("/sessions/{id}/add-quiz/{quiz_id}", status_code=200)
 async def patch_add_quiz_to_session(id: str, quiz_id: str):
     return add_quiz_to_session(id, quiz_id)
 
@@ -121,21 +121,22 @@ async def patch_add_interrupt(session_id: str, interrupt_id: str):
 
 #DELETE
 
-@app.delete("/contests/{id}/remove-users", status_code=200)
-async def delete_users_from_contest(id: str, users: list[Username]):
-    return remove_users_from_contest(id, users)
+@app.delete("/contests/{contest_id}/remove-user/{user_id}", status_code=200)
+async def delete_users_from_contest(contest_id: str, user_id: str):
+    return remove_user_from_contest(contest_id, user_id)
 
-@app.delete("/sessions/{id}/remove-users", status_code=200)
-async def delete_users_from_session(id: str, users: list[Username]):
-    return remove_users_from_session(id, users)
+@app.delete("/sessions/{session_id}/remove-user/{user_id}", status_code=200)
+async def delete_users_from_session(session_id: str, user_id: str):
+    return remove_user_from_session(session_id, user_id)
 
-@app.delete("/sessions/{id}/remove-quiz", status_code=200)
-async def delete_quiz_from_session(id: str):
-    return remove_quiz_from_session(id)
+@app.delete("/sessions/{session_id}/remove-quiz/{quiz_id}", status_code=200)
+async def delete_quiz_from_session(session_id: str, quiz_id: str):
+    return remove_quiz_from_session(session_id, quiz_id)
 
 @app.delete("/sessions/{session_id}/remove-interrupt/{interrupt_id}", status_code=200)
 async def delete_remove_interrupt(session_id: str, interrupt_id: str):
     return remove_interrupt_from_session(session_id, interrupt_id)
+
 
 @app.delete("/users/{user_id}", status_code=200)
 async def delete_user_route(user_id: str):

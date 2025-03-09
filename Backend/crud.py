@@ -4,6 +4,7 @@ from database import users_collection, sessions_collection , quizzes_collection 
 from models import *
 from fastapi import HTTPException
 from bson import ObjectId
+from bson.errors import InvalidId
 
 
 # READ
@@ -12,13 +13,16 @@ def get_users():
     for x in users_collection.find():
         x["_id"] = str(x["_id"])  # Convert ObjectId to string
         users.append(x)
-    return users
+    if len(users) > 0:
+        return {"users": users}
+    else:
+        raise HTTPException(status_code=404, detail="No users found")
 
 def get_user_by_id(user_id):
     try:
-        obj_id = ObjectId(id)  # Convert string to ObjectId
+        obj_id = ObjectId(user_id)  # Convert string to ObjectId
     except:
-        raise HTTPException(status_code=400, detail="Invalid ID format")
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
     user = users_collection.find_one({"_id": obj_id})
     if user:
         user["_id"] = str(user["_id"])  # Convert ObjectId to string
@@ -26,139 +30,164 @@ def get_user_by_id(user_id):
     else:
         raise HTTPException(status_code=404, detail="User not found")
 
-#this includes user sessions where they are not the creator
 def get_users_sessions(user_id):
     try:
-        sessions = []
-        query = { "participants.id": user_id}
-        for session in sessions_collection.find(query):
-            session["_id"] = str(session["_id"])  # Convert ObjectId to string
-            sessions.append(session)
+        # Ensure user_id is a valid ObjectId
+        try:
+            obj_id = ObjectId(user_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        if len(sessions) == 0:
-            return {"message": "No sessions found for this user"}
-        else:
-            return {"sessions": sessions}
+        # Validate user existence
+        if not users_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="User not found")
+
+        sessions = list(sessions_collection.find({"participants.id": user_id}))
+        for session in sessions:
+            session["_id"] = str(session["_id"])
+
+        return {"message": "No sessions found for this user"} if not sessions else {"sessions": sessions}
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 def get_users_contests(user_id):
     try:
-        contests = []
-        query = {"participants.id": user_id}
-        for contest in contests_collection.find(query):
-            contest["_id"] = str(contest["_id"])  # Convert ObjectId to string
-            contests.append(contest)
+        try:
+            obj_id = ObjectId(user_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        if len(contests) == 0:
-            return {"message": "No contests found for this user"}
-        else:
-            return {"contests": contests}
+        if not users_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="User not found")
 
+        contests = list(contests_collection.find({"participants.id": user_id}))
+        for contest in contests:
+            contest["_id"] = str(contest["_id"])
+
+        return {"message": "No contests found for this user"} if not contests else {"contests": contests}
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
+        print(f"Database Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 def get_users_interrupts(user_id):
     try:
-        interrupts = []
-        query = {"creator_id": user_id}
-        for interrupt in interrupts_collection.find(query):
-            interrupt["_id"] = str(interrupt["_id"])  # Convert ObjectId to string
-            interrupts.append(interrupt)
+        try:
+            obj_id = ObjectId(user_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        if len(interrupts) == 0:
-            return {"message": "No interrupts found for this user"}
-        else:
-            return {"interrupts": interrupts}
+        if not users_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="User not found")
 
+        interrupts = list(interrupts_collection.find({"creator_id": user_id}))
+        for interrupt in interrupts:
+            interrupt["_id"] = str(interrupt["_id"])
+
+        return {"message": "No interrupts found for this user"} if not interrupts else {"interrupts": interrupts}
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 def get_users_quizzes(user_id):
     try:
-        quizzes = []
-        query = {"creator_id": user_id}
-        for quizz in quizzes_collection.find(query):
-            quizz["_id"] = str(quizz["_id"])  # Convert ObjectId to string
-            quizzes.append(quizz)
+        try:
+            obj_id = ObjectId(user_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        if len(quizzes) == 0:
-            return {"message": "No quizzes found for this user"}
-        else:
-            return {"quizzes": quizzes}
+        if not users_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="User not found")
 
+        quizzes = list(quizzes_collection.find({"creator_id": user_id}))
+        for quizz in quizzes:
+            quizz["_id"] = str(quizz["_id"])
+
+        return {"message": "No quizzes found for this user"} if not quizzes else {"quizzes": quizzes}
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
 
-def get_sessions_contest(session_id: str):
+def get_sessions_contest(session_id):
     try:
-        contests = []
-        query = {"session_id": session_id}
-        for contest in contests_collection.find(query):
-            contest["_id"] = str(contest["_id"])  # Convert ObjectId to string
-            contests.append(contest)
+        try:
+            obj_id = ObjectId(session_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
 
-        if len(contests) == 0:
-            return {"message": "No contests found for this session"}
-        else:
-            return {"contests": contests}
+        if not sessions_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="Session not found")
 
+        contests = list(contests_collection.find({"session_id": session_id}))
+        for contest in contests:
+            contest["_id"] = str(contest["_id"])
+
+        return {"message": "No contests found for this session"} if not contests else {"contests": contests}
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
-
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-def get_sessions_quizzes(session_id: str):
-     try:
-         quizzes = []
-         query = {"creator_id": session_id}
-         for quizz in quizzes_collection.find(query):
-             quizz["_id"] = str(quizz["_id"])  # Convert ObjectId to string
-             quizzes.append(quizz)
 
-         if len(quizzes) == 0:
-             return {"message": "No quizzes found for this session"}
-         else:
-             return {"quizzes": quizzes}
+def get_sessions_quizzes(session_id):
+    try:
+        try:
+            obj_id = ObjectId(session_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
 
-     except PyMongoError as e:
-         return {"error": f"Database error: {str(e)}"}
+        if not sessions_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="Session not found")
 
-     except Exception as e:
-         return {"error": f"An unexpected error occurred: {str(e)}"}
+        quizzes = list(quizzes_collection.find({"session_id": session_id}))
+        for quizz in quizzes:
+            quizz["_id"] = str(quizz["_id"])
+
+        return {"message": "No quizzes found for this session"} if not quizzes else {"quizzes": quizzes}
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 def get_sessions_interrupts(session_id):
     try:
-        interrupts = []
-        query = {"session_id": session_id}
-        for interrupt in interrupts_collection.find(query):
-            interrupt["_id"] = str(interrupt["_id"])  # Convert ObjectId to string
-            interrupts.append(interrupt)
+        try:
+            obj_id = ObjectId(session_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
 
-        if len(interrupts) == 0:
-            return {"message": "No interrupts found for this session"}
-        else:
-            return {"interrupts": interrupts}
+        if not sessions_collection.find_one({"_id": obj_id}):
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        interrupts = list(interrupts_collection.find({"session_id": session_id}))
+        for interrupt in interrupts:
+            interrupt["_id"] = str(interrupt["_id"])
+
+        return {"message": "No interrupts found for this session"} if not interrupts else {"interrupts": interrupts}
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+def get_quizzes_questions(quiz_id):
+    try:
+        try:
+            obj_id = ObjectId(quiz_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid quiz ID format")
+
+        quiz_exists = quizzes_collection.find_one({"_id": obj_id})
+        if not quiz_exists:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        questions = []
+        query = {"quiz_id": quiz_id}
+        for question in questions_collection.find(query):
+            question["_id"] = str(question["_id"])
+            questions.append(question)
+
+        return {"message": "No questions found for this quiz"} if not questions else {"questions": questions}
 
     except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
-
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 def get_quiz_by_id(quiz_id):
     try:
@@ -171,25 +200,6 @@ def get_quiz_by_id(quiz_id):
         return quizz
     else:
         raise HTTPException(status_code=404, detail="Quizz not found")
-
-def get_quizzes_questions(quiz_id):
-    try:
-        questions = []
-        query = {"quiz_id": quiz_id}
-        for question in questions_collection.find(query):
-            question["_id"] = str(question["_id"])  # Convert ObjectId to string
-            questions.append(question)
-
-        if len(questions) == 0:
-            return {"message": "No questions found for this quiz"}
-        else:
-            return {"questions": questions}
-
-    except PyMongoError as e:
-        return {"error": f"Database error: {str(e)}"}
-
-    except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 
 
@@ -210,14 +220,12 @@ def create_user(user: User):
 
         # Insert into MongoDB
         inserted = users_collection.insert_one(user_dict)
+        user_dict["_id"] = str(inserted.inserted_id)
 
-        return {"message": "User added", "id": str(inserted.inserted_id)}
+        return user_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 def create_user_session(session: Session):
     try:
@@ -227,8 +235,9 @@ def create_user_session(session: Session):
 
         session_dict = session.model_dump()
         inserted = sessions_collection.insert_one(session_dict)
+        session_dict["_id"] = str(inserted.inserted_id)
 
-        return {"message": "Session created", "id": str(inserted.inserted_id)}
+        return session_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -243,7 +252,9 @@ def create_contest(contest: Contest):
         contest_dict = contest.model_dump()
         inserted = contests_collection.insert_one(contest_dict)
 
-        return {"message": "Contest created", "id": str(inserted.inserted_id)}
+        contest_dict["_id"] = str(inserted.inserted_id)
+
+        return contest_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -257,8 +268,9 @@ def create_quiz(quiz: Quizz):
 
         quiz_dict = quiz.model_dump()
         inserted = quizzes_collection.insert_one(quiz_dict)
+        quiz_dict["_id"] = str(inserted.inserted_id)
 
-        return {"message": "Quiz created", "id": str(inserted.inserted_id)}
+        return quiz_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -276,8 +288,9 @@ def create_interrupt(interrupt: Interrupt):
 
         interrupt_dict = interrupt.model_dump()
         inserted = interrupts_collection.insert_one(interrupt_dict)
+        interrupt_dict["_id"] = str(inserted.inserted_id)
 
-        return {"message": "Interrupt created", "id": str(inserted.inserted_id)}
+        return interrupt_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -291,20 +304,15 @@ def create_question(question: Question):
 
         question_dict = question.model_dump()
         inserted = questions_collection.insert_one(question_dict)
+        question_dict["_id"] = str(inserted.inserted_id)
 
-        return {"message": "Question created", "id": str(inserted.inserted_id)}
+        return question_dict
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 #UPDATES
-from pymongo.errors import PyMongoError
-from fastapi import HTTPException
-from database import users_collection
-from models import User
-from bson import ObjectId
-
 # ✅ Update a User by ID
 def update_user(user_id: str, user: User):
     try:
@@ -515,7 +523,7 @@ def add_interrupt_to_session(session_id: str, interrupt_id: str):
 #Removing things from lists
 
 # ✅ Remove Users from a Contest
-def remove_users_from_contest(contest_id: str, users: list[Username]):
+def remove_user_from_contest(contest_id: str, user_id: str):
     try:
         if not ObjectId.is_valid(contest_id):
             raise HTTPException(status_code=400, detail="Invalid contest ID format")
@@ -524,44 +532,18 @@ def remove_users_from_contest(contest_id: str, users: list[Username]):
         if not contest:
             raise HTTPException(status_code=404, detail="Contest not found")
 
-        user_ids_to_remove = [user.id for user in users]
-
         contests_collection.update_one(
             {"_id": ObjectId(contest_id)},
-            {"$pull": {"participants": {"id": {"$in": user_ids_to_remove}}}}
+            {"$pull": {"participants": {"id": user_id}}}  # Remove only this user
         )
 
-        return {"message": "Users removed from contest successfully"}
+        return {"message": "User removed from contest successfully"}
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# ✅ Remove Users from a Session
-def remove_users_from_session(session_id: str, users: list[Username]):
-    try:
-        if not ObjectId.is_valid(session_id):
-            raise HTTPException(status_code=400, detail="Invalid session ID format")
-
-        session = sessions_collection.find_one({"_id": ObjectId(session_id)})
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        user_ids_to_remove = [user.id for user in users]
-
-        sessions_collection.update_one(
-            {"_id": ObjectId(session_id)},
-            {"$pull": {"participants": {"id": {"$in": user_ids_to_remove}}}}
-        )
-
-        return {"message": "Users removed from session successfully"}
-
-    except PyMongoError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-# ✅ Remove a Quiz from a Session
-def remove_quiz_from_session(session_id: str):
+def remove_user_from_session(session_id: str, user_id: str):
     try:
         if not ObjectId.is_valid(session_id):
             raise HTTPException(status_code=400, detail="Invalid session ID format")
@@ -572,7 +554,32 @@ def remove_quiz_from_session(session_id: str):
 
         sessions_collection.update_one(
             {"_id": ObjectId(session_id)},
-            {"$unset": {"quiz_id": ""}}
+            {"$pull": {"participants": {"id": user_id}}}  # Remove only this user
+        )
+
+        return {"message": "User removed from session successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+def remove_quiz_from_session(session_id: str, quiz_id: str):
+    try:
+        if not ObjectId.is_valid(session_id) or not ObjectId.is_valid(quiz_id):
+            raise HTTPException(status_code=400, detail="Invalid session or quiz ID format")
+
+        session = sessions_collection.find_one({"_id": ObjectId(session_id)})
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Ensure the session currently has the provided quiz_id
+        if str(session.get("quiz_id")) != str(quiz_id):
+            print("error here")
+            raise HTTPException(status_code=400, detail="Quiz ID does not match session's quiz")
+
+        sessions_collection.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$unset": {"quiz_id": quiz_id}}
         )
 
         return {"message": "Quiz removed from session successfully"}
@@ -580,13 +587,16 @@ def remove_quiz_from_session(session_id: str):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+
 def remove_interrupt_from_session(session_id: str, interrupt_id: str):
     try:
         if not ObjectId.is_valid(session_id) or not ObjectId.is_valid(interrupt_id):
+
             raise HTTPException(status_code=400, detail="Invalid session or interrupt ID format")
 
         session = sessions_collection.find_one({"_id": ObjectId(session_id)})
         if not session:
+            print("Error here")
             raise HTTPException(status_code=404, detail="Session not found")
 
         result = sessions_collection.update_one(
@@ -595,6 +605,7 @@ def remove_interrupt_from_session(session_id: str, interrupt_id: str):
         )
 
         if result.modified_count == 0:
+            print("Error here 2")
             raise HTTPException(status_code=404, detail="Interrupt not found in session")
 
         return {"message": "Interrupt removed from session successfully"}
@@ -602,51 +613,179 @@ def remove_interrupt_from_session(session_id: str, interrupt_id: str):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-#Actually deleting things
-def delete_item(collection, item_id: str, item_name: str):
+def remove_question_from_quiz(quiz_id: str, question_id: str):
     try:
-        if not ObjectId.is_valid(item_id):
-            raise HTTPException(status_code=400, detail=f"Invalid {item_name} ID")
+        if not ObjectId.is_valid(quiz_id) or not ObjectId.is_valid(question_id):
 
-        result = collection.delete_one({"_id": ObjectId(item_id)})
+            raise HTTPException(status_code=400, detail="Invalid quiz or question ID format")
+
+        quiz = sessions_collection.find_one({"_id": ObjectId(quiz_id)})
+        if not quiz:
+            print("Error here")
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        result = quizzes_collection.update_one(
+            {"_id": ObjectId(quiz_id)},
+            {"$pull": {"questions": {"_id": question_id}}}
+        )
+
+        if result.modified_count == 0:
+            print("Error here 2")
+            raise HTTPException(status_code=404, detail="Interrupt not found in session")
+
+        return {"message": "Question removed from session successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+# ✅ Delete a User
+def delete_user(user_id: str):
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+
+        user_quizzes = quizzes_collection.find({"creator_id": user_id})
+        quiz_ids = [str(quiz["_id"]) for quiz in user_quizzes]
+
+        # Delete all questions linked to those quizzes
+        questions_result = questions_collection.delete_many({"quiz_id": {"$in": quiz_ids}})
+
+        # Delete all quizzes created by this user
+        quizzes_result = quizzes_collection.delete_many({"creator_id": user_id})
+
+        # Delete all sessions created by this user
+        sessions_result = sessions_collection.delete_many({"creator_id": user_id})
+
+        interrupt_result = interrupts_collection.delete_many({"creator_id": user_id})
+
+        # Delete the user
+        result = users_collection.delete_one({"_id": ObjectId(user_id)})
 
         if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail=f"{item_name.capitalize()} not found")
+            raise HTTPException(status_code=404, detail="User not found")
 
-        return {"message": f"{item_name.capitalize()} deleted successfully"}
+        return {"message": "User deleted successfully"}
 
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# ✅ Delete a User
-def delete_user(user_id: str):
-    return delete_item(users_collection, user_id, "user")
-
-
 # ✅ Delete a Session
 def delete_session(session_id: str):
-    return delete_item(sessions_collection, session_id, "session")
+    try:
+        if not ObjectId.is_valid(session_id):
+            raise HTTPException(status_code=400, detail="Invalid session ID")
+
+        # Set session_id to None in contests
+        contests_result = contests_collection.update_many(
+            {"session_id": session_id}, {"$set": {"session_id": None}}
+        )
+
+        # Set session_id to None in interrupts
+        interrupts_result = interrupts_collection.update_many(
+            {"session_id": session_id}, {"$set": {"session_id": None}}
+        )
+
+        # Set session_id to None in quizzes
+        quizzes_result = quizzes_collection.update_many(
+            {"session_id": session_id}, {"$set": {"session_id": None}}
+        )
+
+        result = sessions_collection.delete_one({"_id": ObjectId(session_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        return {"message": "Session deleted successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# ✅ Delete a Contest
+# ✅ Delete a Contest. Nothing to check for
 def delete_contest(contest_id: str):
-    return delete_item(contests_collection, contest_id, "contest")
+    try:
+        if not ObjectId.is_valid(contest_id):
+            raise HTTPException(status_code=400, detail="Invalid contest ID")
+
+        result = contests_collection.delete_one({"_id": ObjectId(contest_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Contest not found")
+
+        return {"message": "Contest deleted successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 # ✅ Delete a Quiz
 def delete_quiz(quiz_id: str):
-    return delete_item(quizzes_collection, quiz_id, "quiz")
+    try:
+        if not ObjectId.is_valid(quiz_id):
+            raise HTTPException(status_code=400, detail="Invalid quiz ID")
+
+        # Delete all questions associated with this quiz
+        questions_result = questions_collection.delete_many({"quiz_id": quiz_id})
+
+        # Delete the quiz itself
+        result = quizzes_collection.delete_one({"_id": ObjectId(quiz_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        return {"message": "Quiz deleted successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# ✅ Delete a Question
+# ✅ Delete a Question. need to check in Quizz
 def delete_question(question_id: str):
-    return delete_item(questions_collection, question_id, "question")
+    try:
+        if not ObjectId.is_valid(question_id):
+            raise HTTPException(status_code=400, detail="Invalid question ID")
+
+        # Remove the question ID from any quiz that contains it
+        quizzes_collection.update_many(
+            {"questions": question_id},
+            {"$pull": {"questions": question_id}}
+        )
+
+        # Delete the question itself
+        result = questions_collection.delete_one({"_id": ObjectId(question_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Question not found")
+
+        return {"message": "Question deleted successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 # ✅ Delete an Interrupt
 def delete_interrupt(interrupt_id: str):
-    return delete_item(interrupts_collection, interrupt_id, "interrupt")
+    try:
+        if not ObjectId.is_valid(interrupt_id):
+            raise HTTPException(status_code=400, detail="Invalid interrupt ID")
+
+        sessions_collection.update_many(
+            {"interrupts._id": interrupt_id},
+            {"$pull": {"interrupts": {"_id": interrupt_id}}}
+        )
+
+        # Delete the interrupt itself
+        result = interrupts_collection.delete_one({"_id": ObjectId(interrupt_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Interrupt not found")
+
+        return {"message": "Interrupt deleted successfully"}
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 
 
