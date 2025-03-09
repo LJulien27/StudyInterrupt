@@ -1,10 +1,51 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import logging
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 import crud
 from crud import *
 
+from init_db import init_db
+
     # Initialize FastAPI app
 app = FastAPI(title="Fast Mongo API")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Configure CORS
+origins = [
+    "http://localhost:3000",  # React development server
+    # Add other origins as needed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@asynccontextmanager
+async def lifespan():
+    init_db()
+    # above the 'yield' is executed before the application starts
+    yield
+    # below the 'yield' is executed after the application finishes
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Request: {await request.body()}")
+    logger.error(f"Validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
 
 #GET Requests
 @app.get("/users/{id}")
@@ -161,3 +202,8 @@ async def delete_question_route(question_id: str):
 @app.delete("/interrupts/{interrupt_id}", status_code=200)
 async def delete_interrupt_route(interrupt_id: str):
     return delete_interrupt(interrupt_id)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
