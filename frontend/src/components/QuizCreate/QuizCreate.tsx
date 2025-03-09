@@ -37,12 +37,14 @@ const QuizCreate = () => {
 
   const handleSubmitQuiz = async () => {
     const quizObject = {
-      name: quizName,
-      class: quizClass,
+      title: quizName,
+      creator_id: '67cdd0e8cfa6df744b82ebba', // replace with userID once implemented
+      session_id: null,
+      created_at: new Date(),
       questions: questions
     };
     try {
-      const QuizResponse = await axios.post('http://localhost:27017/users/1/quizzes', quizObject);
+      const QuizResponse = await axios.post('http://localhost:8000/users/67cdd0e8cfa6df744b82ebba/quizzes', quizObject);
       console.log(QuizResponse.data);
       for (let i = 0; i < questions.length; i++) {
         console.log("Submitting question: ", questions[i]);
@@ -53,8 +55,8 @@ const QuizCreate = () => {
           body: question.body,
           answer: question.answer
         };
-        console.log(questionObject)
-        let response = await axios.post('http://localhost:27017/quizzes/'+QuizResponse.data.id+'/questions', questionObject);
+        console.log(questionObject) // debug purposes
+        let response = await axios.post('http://localhost:8000/quizzes/'+QuizResponse.data.id+'/questions', questionObject);
         console.log(response.data);
       }
     } catch (error) {
