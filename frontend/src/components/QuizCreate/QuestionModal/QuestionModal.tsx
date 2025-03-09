@@ -46,6 +46,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       } else if(editingQuestion.type === QuestionType.FILLBLANK){
         setQuestionEnd(editingQuestion.body);
       }
+      setValidated(true);
     } else {
       // Reset to default when adding a new question
       setQuestionType(defaultQuestion.type);
@@ -56,6 +57,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ show, onHide, onSave, edi
       setAssociations({});
       setLeftOptions(['']);
       setRightOptions(['']);
+      setValidated(false);
     }
   }, [editingQuestion, show]);
 

@@ -53,6 +53,7 @@ const QuizCreate = () => {
           body: question.body,
           answer: question.answer
         };
+        console.log(questionObject)
         let response = await axios.post('http://localhost:27017/quizzes/'+QuizResponse.data.id+'/questions', questionObject);
         console.log(response.data);
       }
