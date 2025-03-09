@@ -762,25 +762,113 @@ def test_delete_user_success(mock_db):
 
     # Verify question is deleted
     assert mock_db.questions.find_one({"_id": ObjectId(VALID_QUESTION_ID)}) is None
-"""
+
 def test_delete_session_success(mock_db):
-    Test successfully deleting a user and cleaning up related data.
+    #Test successfully deleting a user and cleaning up related data.
     # Send the delete request
-    response = client.delete(f"/users/{VALID_SESSION_ID}")
+    response = client.delete(f"/sessions/{VALID_SESSION_ID}")
+
+    related_collections = ["contests", "interrupts", "quizzes"]
 
     # Assert successful deletion
     assert response.status_code == 200
     assert response.json() == {"message": "Session deleted successfully"}
 
-    # Verify user is deleted
-    assert mock_db.users.find_one({"_id": ObjectId(VALID_USER_ID)}) is None
-
     # Verify session is deleted
     assert mock_db.sessions.find_one({"_id": ObjectId(VALID_SESSION_ID)}) is None
 
-    # Verify quiz is deleted
-    assert mock_db.quizzes.find_one({"_id": ObjectId(VALID_QUIZ_ID)}) is None
+    for collection in related_collections:
+        assert mock_db[collection].count_documents({"session_id": VALID_SESSION_ID}) == 0
 
-    # Verify question is deleted
-    assert mock_db.questions.find_one({"_id": ObjectId(VALID_QUESTION_ID)}) is None
-"""
+
+def test_delete_contest_success(mock_db):
+    # Test successfully deleting a user and cleaning up related data.
+    # Send the delete request
+    response = client.delete(f"/contests/{VALID_CONTEST_ID}")
+
+    # Assert successful deletion
+    assert response.status_code == 200
+    assert response.json() == {"message": "Contest deleted successfully"}
+
+    # Verify session is deleted
+    assert mock_db.sessions.find_one({"_id": ObjectId(VALID_CONTEST_ID)}) is None
+
+def test_delete_quiz_success(mock_db):
+    # Test successfully deleting a user and cleaning up related data.
+    # Send the delete request
+
+
+    response = client.delete(f"/quizzes/{VALID_QUIZ_ID}")
+
+    # Assert successful deletion
+    assert response.status_code == 200
+    assert response.json() == {"message": "Quiz deleted successfully"}
+
+    # Verify session is deleted
+    assert mock_db.sessions.find_one({"_id": ObjectId(VALID_QUIZ_ID)}) is None
+
+    assert mock_db["questions"].count_documents({"quiz_id": VALID_QUIZ_ID}) == 0
+
+def test_delete_question_success(mock_db):
+    # Test successfully deleting a user and cleaning up related data.
+    # Send the delete request
+
+    response = client.delete(f"/questions/{VALID_QUESTION_ID}")
+
+    # Assert successful deletion
+    assert response.status_code == 200
+    assert response.json() == {"message": "Question deleted successfully"}
+
+    # Verify session is deleted
+    assert mock_db.sessions.find_one({"_id": ObjectId(VALID_CONTEST_ID)}) is None
+
+def test_delete_interrupt_success(mock_db):
+    response = client.delete(f"/interrupts/{VALID_INTERRUPT_ID}")
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "Interrupt deleted successfully"}
+
+    # Verify the interrupt is deleted
+    assert mock_db.interrupts.find_one({"_id": ObjectId(VALID_INTERRUPT_ID)}) is None
+
+    # Verify the interrupt is removed from the session's interrupts list
+    session = mock_db.sessions.find_one({"_id": ObjectId(VALID_SESSION_ID)})
+    assert VALID_INTERRUPT_ID not in [i["_id"] for i in session["interrupts"]]
+
+def test_delete_user_invalid(mock_db):
+    """Test deleting a user that does not exist."""
+    response = client.delete(f"/users/{INVALID_USER_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+def test_delete_session_invalid(mock_db):
+    """Test deleting a session that does not exist."""
+    response = client.delete(f"/sessions/{INVALID_SESSION_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Session not found"}
+
+def test_delete_contest_invalid(mock_db):
+    """Test deleting a contest that does not exist."""
+    response = client.delete(f"/contests/{INVALID_CONTEST_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Contest not found"}
+
+def test_delete_quiz_invalid(mock_db):
+    """Test deleting a quiz that does not exist."""
+    response = client.delete(f"/quizzes/{INVALID_QUIZ_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Quiz not found"}
+
+def test_delete_question_invalid(mock_db):
+    """Test deleting a question that does not exist."""
+    response = client.delete(f"/questions/{INVALID_QUESTION_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Question not found"}
+
+def test_delete_interrupt_invalid(mock_db):
+    """Test deleting an interrupt that does not exist."""
+    response = client.delete(f"/interrupts/{INVALID_INTERRUPT_ID}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Interrupt not found"}
+
+
