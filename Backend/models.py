@@ -48,4 +48,4 @@ class Session(BaseModel):
     creator_id: str
     interrupts: List[Interrupt]
     participants: List[Username]
-    quiz_id: float | None = None
+    quiz_id: str | None = None
