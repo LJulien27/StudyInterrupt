@@ -613,31 +613,6 @@ def remove_interrupt_from_session(session_id: str, interrupt_id: str):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-def remove_question_from_quiz(quiz_id: str, question_id: str):
-    try:
-        if not ObjectId.is_valid(quiz_id) or not ObjectId.is_valid(question_id):
-
-            raise HTTPException(status_code=400, detail="Invalid quiz or question ID format")
-
-        quiz = sessions_collection.find_one({"_id": ObjectId(quiz_id)})
-        if not quiz:
-            print("Error here")
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        result = quizzes_collection.update_one(
-            {"_id": ObjectId(quiz_id)},
-            {"$pull": {"questions": {"_id": question_id}}}
-        )
-
-        if result.modified_count == 0:
-            print("Error here 2")
-            raise HTTPException(status_code=404, detail="Interrupt not found in session")
-
-        return {"message": "Question removed from session successfully"}
-
-    except PyMongoError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
 # ✅ Delete a User
 def delete_user(user_id: str):
     try:
