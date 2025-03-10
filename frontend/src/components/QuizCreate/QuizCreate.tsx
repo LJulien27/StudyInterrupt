@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { QuizCreateWrapper } from './QuizCreate.styled';
 import QuestionModal from './QuestionModal/QuestionModal';
+import OopsModal from '../Default/OopsModal';
 import { Button, Form, FloatingLabel, Card } from 'react-bootstrap';
 import Question, {QuestionType} from '../../types/Question';
 
@@ -11,6 +12,8 @@ const QuizCreate = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleAddQuestion = (newQuestion: Question) => {
     if (editingIndex !== null) {
@@ -61,6 +64,8 @@ const QuizCreate = () => {
       }
     } catch (error) {
       console.error("Error submitting quiz: ", error);
+      setErrorMessage(`Error: ${error || 'An unknown error occurred.'}`);
+      setIsErrorModalOpen(true);
     }
   };
 
@@ -167,6 +172,11 @@ const QuizCreate = () => {
         onHide={() => { setIsModalOpen(false); setEditingIndex(null); }}
         onSave={handleAddQuestion}
         editingQuestion={editingIndex !== null ? questions[editingIndex] : null}
+      />
+      <OopsModal
+        show={isErrorModalOpen}
+        onHide={() => setIsErrorModalOpen(false)}
+        errorMessage={errorMessage}
       />
     </QuizCreateWrapper>
   );
