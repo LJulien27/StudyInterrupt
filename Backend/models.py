@@ -17,7 +17,7 @@ class Username(BaseModel):
     username: str
 
 class Contest(BaseModel):
-    grades: List[str] | None = None
+    grades: List[int] | None = None
     participants: List[Username]
     session_id: str
 
@@ -45,6 +45,5 @@ class Session(BaseModel):
     start_time: datetime
     end_time: datetime
     creator_id: str
-    interrupts: List[Interrupt] | None = None
     participants: List[Username]
     quiz_id: str | None = None
