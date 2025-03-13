@@ -44,22 +44,23 @@ const QuizCreate = () => {
       creator_id: '67cdd0e8cfa6df744b82ebba', // replace with userID once implemented
       session_id: null,
       created_at: new Date(),
-      questions: questions
     };
     try {
-      const QuizResponse = await axios.post('http://localhost:8000/users/67cdd0e8cfa6df744b82ebba/quizzes', quizObject);
+      const QuizResponse = await axios.post('http://localhost:8000/quizzes/', quizObject);
       console.log(QuizResponse.data);
+      const quizId = QuizResponse.data._id
       for (let i = 0; i < questions.length; i++) {
         console.log("Submitting question: ", questions[i]);
         let question = questions[i];
         let questionObject = {
+          quiz_id: quizId,
           type: question.type,
           text: question.text,
           body: question.body,
           answer: question.answer
         };
         console.log(questionObject) // debug purposes
-        let response = await axios.post('http://localhost:8000/quizzes/'+QuizResponse.data.id+'/questions', questionObject);
+        let response = await axios.post('http://localhost:8000/questions/', questionObject);
         console.log(response.data);
       }
     } catch (error) {
@@ -74,7 +75,7 @@ const QuizCreate = () => {
       case QuestionType.SINGLESELECT:
          return (
            <div>
-             <strong>Single Select:</strong> {question.text}
+             <strong>{index+1}. Single Select:</strong> {question.text}
              <ul>
                {question.body.split('&!!&').map((option, idx) => (
                  <li key={idx}>{option}</li>
@@ -86,7 +87,7 @@ const QuizCreate = () => {
        case QuestionType.MULTISELECT:
          return (
            <div>
-             <strong>Multi Select:</strong> {question.text}
+             <strong>{index+1}. Multi Select:</strong> {question.text}
              <ul>
                {question.body.split('&!!&').map((option, idx) => (
                  <li key={idx}>{option}</li>
@@ -98,14 +99,14 @@ const QuizCreate = () => {
        case QuestionType.FILLBLANK:
          return (
            <div>
-             <strong>Fill in the Blank:</strong> {question.text} ______ {question.body}
+             <strong>{index+1}. Fill in the Blank:</strong> {question.text} ______ {question.body}
              <p><strong>Answer:</strong> {question.answer}</p>
            </div>
          );
        case QuestionType.ASSOCIATION:
          return (
            <div>
-             <strong>Association:</strong> {question.text}
+             <strong>{index+1}. Association:</strong> {question.text}
              <ul>
                {question.body.split('&!!&').map((leftOption, idx) => (
                  <li key={idx}>{leftOption} - {question.answer.split('&!!&')[idx]}</li>

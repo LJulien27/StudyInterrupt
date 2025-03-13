@@ -23,7 +23,7 @@ class Contest(BaseModel):
 
 class Question(BaseModel):
     type: int
-    title: str
+    text: str
     body: str
     answer: str
     quiz_id: str
@@ -33,7 +33,6 @@ class Quizz(BaseModel):
     creator_id: str
     session_id: str | None = None
     created_at: datetime
-    questions: List[str]
 
 class Interrupt(BaseModel):
     type: int
@@ -46,6 +45,6 @@ class Session(BaseModel):
     start_time: datetime
     end_time: datetime
     creator_id: str
-    interrupts: List[Interrupt]
+    interrupts: List[Interrupt] | None = None
     participants: List[Username]
     quiz_id: str | None = None
