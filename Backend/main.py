@@ -11,7 +11,7 @@ from crud import *
 from init_db import init_db
 
     # Initialize FastAPI app
-app = FastAPI(title="Fast Mongo API")
+app = FastAPI(title="StudyInterrupt API")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -97,23 +97,23 @@ async def get_quizzes_questions(id: str):
 async def add_user(user: User):
     return crud.create_user(user)
 
-@app.post("/users/{id}/sessions", status_code=201)
+@app.post("/sessions", status_code=201)
 async def add_user_session(session: Session):
     return create_user_session(session)
 
-@app.post("/users/{id}/contests", status_code=201)
+@app.post("/contests", status_code=201)
 async def add_user_contest(contest: Contest):
     return create_contest(contest)
 
-@app.post("/users/{id}/quizzes", status_code=201)
+@app.post("/quizzes", status_code=201)
 async def add_user_quiz(quiz: Quizz):
     return create_quiz(quiz)
 
-@app.post("/sessions/{id}/interrupts", status_code=201)
+@app.post("/interrupts", status_code=201)
 async def add_session_interrupt(interrupt: Interrupt):
     return create_interrupt(interrupt)
 
-@app.post("/quizzes/{id}/questions", status_code=201)
+@app.post("/questions", status_code=201)
 async def add_quiz_question(question: Question):
     return create_question(question)
 
