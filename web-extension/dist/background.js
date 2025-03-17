@@ -2,6 +2,8 @@ let appleTabId = null; // Stores the Apple.com tab ID
 let timer = null; // Stores the reference to the timeout function
 let isTimerActive = false; // Keeps track of whether the timer is running
 
+const interruptTime = 5000; // The interrupt time in miliseconds
+
 // Function to start a 5-second timer
 function startTimer() {
     if (isTimerActive) return; // Prevent multiple timers
@@ -15,7 +17,7 @@ function startTimer() {
             console.log(`Apple tab opened with ID: ${appleTabId}`);
             isTimerActive = false; // Reset flag after opening Apple
         });
-    }, 5000);
+    }, interruptTime);
 }
 
 // Function to reset the timer when returning to the Apple tab
