@@ -18,6 +18,17 @@ const quizzes: Quiz[] = [
     questions: [
       { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
       { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
+      { type: QuestionType.FILLBLANK, text: "The capital of France is _____", body: "", answer: "Paris" },
+      { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
+    ],
+  },
+  {
+    id: 2,
+    name: "Math Quiz 2",
+    className: "Math 101",
+    questions: [
+      { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
+      { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
       { type: QuestionType.FILLBLANK, text: "The capital of France is", body: "", answer: "Paris" },
       { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
     ],
@@ -130,7 +141,7 @@ const Quiz = () => {
                   </FloatingLabel>
                 )}
 
-{question.type === QuestionType.ASSOCIATION && (
+                {question.type === QuestionType.ASSOCIATION && (
                   question.body.split("&!!&").map((leftOption, idx) => (
                     <InputGroup key={idx} className="mb-2">
                       <InputGroup.Text>{leftOption}</InputGroup.Text>
