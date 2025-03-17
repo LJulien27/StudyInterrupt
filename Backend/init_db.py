@@ -19,7 +19,7 @@ def init_db():
             default_min_range=30,
             default_max_range=30
         )
-        users_collection.insert_one(default_user.dict())
+        users_collection.insert_one(default_user.model_dump())
         print("Default user created.")
     else:
         print("Default user already exists.")
