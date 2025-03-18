@@ -2,7 +2,7 @@ let appleTabId = null; // Stores the Apple.com tab ID
 let timer = null; // Stores the reference to the timeout function
 let isTimerActive = false; // Keeps track of whether the timer is running
 
-const interruptTime = 5000; // The interrupt time in miliseconds
+let interruptTime = 5; // The interrupt time in seconds
 
 // Function to start a 5-second timer
 function startTimer() {
@@ -12,7 +12,7 @@ function startTimer() {
     console.log("Timer started. Will open Apple.com in 5 seconds...");
 
     timer = setTimeout(() => {
-        chrome.tabs.create({ url: "https://www.apple.com" }, (tab) => {
+        chrome.tabs.create({ url: "https://www.uottawa.ca" }, (tab) => {
             appleTabId = tab.id; // Store the newly created Apple.com tab ID
             console.log(`Apple tab opened with ID: ${appleTabId}`);
             isTimerActive = false; // Reset flag after opening Apple
@@ -30,9 +30,6 @@ function resetTimer() {
     }
 }
 
-// Start the first timer when the extension runs
-startTimer();
-
 // Detect when a new tab is activated
 chrome.tabs.onActivated.addListener((activeInfo) => {
     const currentTabId = activeInfo.tabId;
@@ -46,3 +43,19 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
         startTimer();
     }
 });
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "SET_TIMER") {
+        interruptTime = message.payload * 1000;
+        console.log(`Timer length updated to: ${interruptTime} seconds`);
+
+        sendResponse({ status: "Timer updated successfully" });
+
+        startTimer();
+
+        return true;
+
+    }
+});
+
+
