@@ -1,0 +1,61 @@
+let appleTabId = null; // Stores the Apple.com tab ID
+let timer = null; // Stores the reference to the timeout function
+let isTimerActive = false; // Keeps track of whether the timer is running
+
+let interruptTime = 5; // The interrupt time in seconds
+
+// Function to start a 5-second timer
+function startTimer() {
+    if (isTimerActive) return; // Prevent multiple timers
+
+    isTimerActive = true;
+    console.log("Timer started. Will open Apple.com in 5 seconds...");
+
+    timer = setTimeout(() => {
+        chrome.tabs.create({ url: "https://www.uottawa.ca" }, (tab) => {
+            appleTabId = tab.id; // Store the newly created Apple.com tab ID
+            console.log(`Apple tab opened with ID: ${appleTabId}`);
+            isTimerActive = false; // Reset flag after opening Apple
+        });
+    }, interruptTime);
+}
+
+// Function to reset the timer when returning to the Apple tab
+function resetTimer() {
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        isTimerActive = false;
+        console.log("Returned to Apple tab. Timer stopped.");
+    }
+}
+
+// Detect when a new tab is activated
+chrome.tabs.onActivated.addListener((activeInfo) => {
+    const currentTabId = activeInfo.tabId;
+
+    if (currentTabId === appleTabId) {
+        // If returning to the Apple tab, reset the timer
+        resetTimer();
+    } else {
+        // If switching away from the Apple tab, start a new timer
+        console.log(`Switched to a new tab (ID: ${currentTabId}). Restarting timer.`);
+        startTimer();
+    }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "SET_TIMER") {
+        interruptTime = message.payload * 1000;
+        console.log(`Timer length updated to: ${interruptTime} seconds`);
+
+        sendResponse({ status: "Timer updated successfully" });
+
+        startTimer();
+
+        return true;
+
+    }
+});
+
+

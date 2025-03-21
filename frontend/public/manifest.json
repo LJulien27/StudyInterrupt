@@ -1,25 +1,19 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+    "manifest_version": 3,
+    "name": "API Proxy Extension",
+    "version": "1.0",
+    "permissions": ["storage", "activeTab"],
+    "host_permissions": ["https://api.example.com/*"],
+    "background": {
+        "service_worker": "background.js"
     },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
+    "action": {
+        "default_popup": "popup.html"
     },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+    "web_accessible_resources": [
+        {
+            "resources": ["index.html", "static/js/*.js", "static/css/*.css"],
+            "matches": ["<all_urls>"]
+        }
+    ]
 }
