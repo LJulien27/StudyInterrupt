@@ -19,11 +19,10 @@ const App: React.FC = () => {
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
               <Nav.Link as={Link} to="/quiz">Quizzes</Nav.Link>
-              <Nav.Link as={Link} to="/create-quiz">Create Your Own Quiz</Nav.Link>
-              <Nav.Link as={Link} to="/user-form">User Parameters</Nav.Link>
-              <Nav.Link as={Link} to="/history">History</Nav.Link>
-              <Nav.Link as={Link} to="/my-sessions">My Sessions</Nav.Link>
-              <Nav.Link as={Link} to="/my-quiz-content">My Quiz Content</Nav.Link>
+              <Nav.Link as={Link} to="/create-quiz">Create A Quiz</Nav.Link>
+              <Nav.Link as={Link} to="/user-form">Parameters</Nav.Link>
+              <Nav.Link as={Link} to="/my-sessions">Sessions</Nav.Link>
+              <Nav.Link as={Link} to="/my-quiz-content">Generated Content</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
