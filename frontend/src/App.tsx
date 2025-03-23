@@ -5,6 +5,7 @@ import { Container, Navbar, Nav } from 'react-bootstrap';
 import QuizCreate from './components/QuizCreate/QuizCreate';
 import UserForm from './components/UserForm/UserForm';
 import Quiz from './components/Quiz/Quiz';
+import History from './components/History/History';
 import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
 
@@ -20,6 +21,7 @@ const App: React.FC = () => {
               <Nav.Link as={Link} to="/quiz">Quizzes</Nav.Link>
               <Nav.Link as={Link} to="/create-quiz">Create Your Own Quiz</Nav.Link>
               <Nav.Link as={Link} to="/user-form">User Parameters</Nav.Link>
+              <Nav.Link as={Link} to="/history">History</Nav.Link>
               <Nav.Link as={Link} to="/my-sessions">My Sessions</Nav.Link>
               <Nav.Link as={Link} to="/my-quiz-content">My Quiz Content</Nav.Link>
             </Nav>
@@ -32,6 +34,7 @@ const App: React.FC = () => {
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/create-quiz" element={<QuizCreate />} />
           <Route path="/user-form" element={<UserForm />} />
+          <Route path="/history" element={<History />} />
           <Route path="/my-sessions" element={<MySessions />} />
           <Route path="/my-quiz-content" element={<MyQuizContent />} />
         </Routes>
