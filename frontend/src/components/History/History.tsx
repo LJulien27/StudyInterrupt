@@ -4,7 +4,6 @@ import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import { Session } from "../../types/Sessions";
 import { Contest } from "../../types/Contests";
-import * as S from "./History.styled";
 
 
 const History = () => {
@@ -40,7 +39,8 @@ const History = () => {
   }, []);
 
   return (
-    <div className="container mt-4">
+   
+    <div >
       <h1>Session and Contest History</h1>
       <table className="table table-bordered">
         <thead>
@@ -76,6 +76,7 @@ const History = () => {
           })}
         </tbody>
       </table>
+      
 
       <OopsModal
         show={isErrorModalOpen}
