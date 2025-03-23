@@ -137,7 +137,7 @@ input[type=text] {
 input[type=text]:focus {
   background-color: lightblue;
 }
-button {
+.button {
   background-color: #044b4b;
   font-family: sans-serif;
   font-size: 15px;

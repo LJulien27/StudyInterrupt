@@ -5,8 +5,13 @@ import QuestionModal from './QuestionModal/QuestionModal';
 import OopsModal from '../Default/OopsModal';
 import { Button, Form, FloatingLabel, Card } from 'react-bootstrap';
 import Question, {QuestionType} from '../../types/Question';
+import User from '../../types/User';
 
-const QuizCreate = () => {
+interface QuizCreateProps {
+  user: User;
+}
+
+const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
   const [quizName, setQuizName] = useState('');
   const [quizClass, setQuizClass] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -41,7 +46,7 @@ const QuizCreate = () => {
   const handleSubmitQuiz = async () => {
     const quizObject = {
       title: quizName,
-      creator_id: '67cdd0e8cfa6df744b82ebba', // replace with userID once implemented
+      creator_id: user.id, // replace with userID once implemented
       session_id: null,
       created_at: new Date(),
     };

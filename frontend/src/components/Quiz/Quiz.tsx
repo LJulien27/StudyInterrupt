@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
+import User from '../../types/User';
 
 interface Quiz {
   _id: string;
@@ -9,6 +10,10 @@ interface Quiz {
   creator_id: string;
   session_id: string;
   created_at: string;
+}
+
+interface QuizProps {
+  user: User;
 }
 
 // Dummy quiz data
@@ -39,7 +44,7 @@ interface Quiz {
 
 
 
-const Quiz = () => {
+const Quiz: React.FC<QuizProps> = ({ user }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string | string[] }>({});
   const [score, setScore] = useState<number | null>(null);

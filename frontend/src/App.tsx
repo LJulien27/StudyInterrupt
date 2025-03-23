@@ -8,8 +8,14 @@ import Quiz from './components/Quiz/Quiz';
 import History from './components/History/History';
 import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
+import User from './types/User';
 
 const App: React.FC = () => {
+
+  const user = {
+    id: '67cdd0e8cfa6df744b82ebba'
+  }
+
   return (
     <Router>
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
@@ -30,12 +36,12 @@ const App: React.FC = () => {
 
       <Container>
         <Routes>
-          <Route path="/quiz" element={<Quiz />} />
-          <Route path="/create-quiz" element={<QuizCreate />} />
+          <Route path="/quiz" element={<Quiz user={user}/>} />
+          <Route path="/create-quiz" element={<QuizCreate user={user}/>} />
           <Route path="/user-form" element={<UserForm />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/my-sessions" element={<MySessions />} />
-          <Route path="/my-quiz-content" element={<MyQuizContent />} />
+          <Route path="/history" element={<History user={user}/>} />
+          <Route path="/my-sessions" element={<MySessions user={user}/>} />
+          <Route path="/my-quiz-content" element={<MyQuizContent user={user}/>} />
         </Routes>
       </Container>
     </Router>
