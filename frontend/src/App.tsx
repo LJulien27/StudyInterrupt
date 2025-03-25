@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import QuizCreate from './components/QuizCreate/QuizCreate';
@@ -9,12 +9,23 @@ import History from './components/History/History';
 import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
 import User from './types/User';
+import axios from 'axios';
 
 const App: React.FC = () => {
 
-  const user = {
+  const [user, setUser] = useState<User>({
     id: '67cdd0e8cfa6df744b82ebba'
-  }
+  });
+
+  useEffect(() => {
+    axios
+      .get('http://localhost:8000/users/')
+      .then(response => {
+        setUser(Array.isArray(response.data.users) ? response.data.users[0] : {id: '67cdd0e8cfa6df744b82ebba'});
+      });
+  }, []);
+
+  
 
   return (
     <Router>
