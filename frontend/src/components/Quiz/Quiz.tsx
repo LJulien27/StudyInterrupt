@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
+import User from '../../types/User';
 import { Username } from '../../types/Sessions';
 
 interface Quiz {
@@ -10,6 +11,10 @@ interface Quiz {
   creator_id: string;
   session_id: string;
   created_at: string;
+}
+
+interface QuizProps {
+  user: User;
 }
 
 interface Contest {
@@ -54,7 +59,7 @@ interface ContestNoId {
 
 
 
-const Quiz = () => {
+const Quiz: React.FC<QuizProps> = ({ user }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [contest, setContest] = useState<Contest | null>(null);
   const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
@@ -65,7 +70,7 @@ const Quiz = () => {
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      const response = await axios.get(`http://localhost:8000/users/67d4aafda97b4f67f45759bf/quizzes`);//replace with route user id
+      const response = await axios.get(`http://localhost:8000/users/${user.id}/quizzes`);//replace with route user id
       setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
       
     };

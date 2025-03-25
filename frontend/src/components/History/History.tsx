@@ -4,9 +4,14 @@ import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import { Session } from "../../types/Sessions";
 import { Contest } from "../../types/Contests";
+import User from "../../types/User";
+
+interface HistoryProps {
+  user: User;
+}
 
 
-const History = () => {
+const History: React.FC<HistoryProps> = ({ user }) => {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [sessions, setSessions] = useState<Session[]>([]);

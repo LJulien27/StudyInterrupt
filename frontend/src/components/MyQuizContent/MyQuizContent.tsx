@@ -1,7 +1,12 @@
 import './MyQuizContent.css';
+import User from '../../types/User';
+
+interface MyQuizContentProps {
+  user: User;
+}
 
 
-const MyQuizContent = () => {
+const MyQuizContent: React.FC<MyQuizContentProps> = ({ user }) => {
 
   return (
     <div className="Wrap">
