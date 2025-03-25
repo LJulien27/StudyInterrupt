@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
+import { Username } from '../../types/Sessions';
 
 interface Quiz {
   _id: string;
@@ -10,6 +11,20 @@ interface Quiz {
   session_id: string;
   created_at: string;
 }
+
+interface Contest {
+  _id: string;
+  session_id: string;
+  participants: Username[];
+  grades: number[]
+}
+
+interface ContestNoId {
+  session_id: string;
+  participants: Username[];
+  grades: number[]
+}
+
 
 // Dummy quiz data
 // let quizzes: Quiz[] = [
@@ -41,6 +56,8 @@ interface Quiz {
 
 const Quiz = () => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [contest, setContest] = useState<Contest | null>(null);
+  const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string | string[] }>({});
   const [score, setScore] = useState<number | null>(null);
   const [Quizes, setQuizes] = useState<Quiz[]>([]);
@@ -54,7 +71,7 @@ const Quiz = () => {
     };
   
     fetchQuizzes();
-  }); //replace with route user id
+  }, []); //replace with route user id
 
   const handleQuizSelect = async (quiz: Quiz) => {
     try {
@@ -71,7 +88,7 @@ const Quiz = () => {
     setAnswers((prev) => ({ ...prev, [index]: value }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const unansweredQuestions = Questions
       .map((question, index) => {
         if (!answers[index]) return `Q${index + 1}`;
@@ -106,8 +123,34 @@ const Quiz = () => {
         }
       }
     });
-
     const finalScore = Math.round((correctAnswers / Questions.length) * 100);
+    //update contest grade
+    const contest_response = await axios.get(`http://localhost:8000/sessions/67d4ab26a97b4f67f45759c0/contests`);
+    setContest(contest_response.data.contest)
+    console.log(contest)
+    if (contest && contest.grades) {
+
+    let participantIndex = contest.participants.findIndex(
+      (participant: Username) => participant.id == "67d4aafda97b4f67f45759bf"
+    );
+    console.log(finalScore)
+    contest.grades[participantIndex] = finalScore;
+
+    const contestToSend: ContestNoId = {
+      "grades": contest.grades,
+    "participants": contest.participants,
+    "session_id": contest.session_id
+    }
+
+    
+      
+      console.log(contestToSend)
+      const update_contest = await axios.put(`http://localhost:8000/contests/${contest._id}`, contestToSend);
+    }
+
+    
+
+    
     setScore(finalScore);
     alert(`Quiz Submitted! You scored ${finalScore}%`);
   };
