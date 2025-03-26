@@ -179,7 +179,9 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
           <Form>
             {Questions.map((question, index) => (
               <div key={index} className="mb-3">
-                <strong>Q{index + 1}. {question.text}</strong>
+                {question.type !== QuestionType.FILLBLANK && (
+                  <strong>Q{index + 1}. {question.text}</strong>
+                )}
                 
                 {question.type === QuestionType.SINGLESELECT && (
                   <Form.Select onChange={(e) => handleAnswerChange(index, e.target.value)}>
@@ -209,9 +211,12 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
                 )}
 
                 {question.type === QuestionType.FILLBLANK && (
-                  <FloatingLabel controlId={`fillblank-${index}`} label="Your Answer">
-                    <Form.Control type="text" onChange={(e) => handleAnswerChange(index, e.target.value)} />
-                  </FloatingLabel>
+                  <div>
+                    <strong>Q{index + 1}. {question.text} ______ {question.body}</strong>
+                    <FloatingLabel controlId={`fillblank-${index}`} label="Your Answer">
+                      <Form.Control type="text" onChange={(e) => handleAnswerChange(index, e.target.value)} />
+                    </FloatingLabel>
+                  </div>
                 )}
 
                 {question.type === QuestionType.ASSOCIATION && (
