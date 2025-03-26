@@ -67,8 +67,8 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
         console.log(questionObject) // debug purposes
         let response = await axios.post('http://localhost:8000/questions/', questionObject);
         console.log(response.data);
-        alert("Your quiz has been submitted");
       }
+      alert("Your quiz has been submitted");
     } catch (error) {
       console.error("Error submitting quiz: ", error);
       setErrorMessage(`Error: ${error || 'An unknown error occurred.'}`);
