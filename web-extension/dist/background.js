@@ -12,7 +12,7 @@ function startTimer() {
     console.log("Timer started. Will open Apple.com in 5 seconds...");
 
     timer = setTimeout(() => {
-        chrome.tabs.create({ url: "https://www.uottawa.ca" }, (tab) => {
+        chrome.tabs.create({ url: "http://localhost:3000/quiz" }, (tab) => {
             appleTabId = tab.id; // Store the newly created Apple.com tab ID
             console.log(`Apple tab opened with ID: ${appleTabId}`);
             isTimerActive = false; // Reset flag after opening Apple
@@ -57,5 +57,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     }
 });
-
-

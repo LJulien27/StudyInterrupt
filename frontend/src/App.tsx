@@ -14,14 +14,14 @@ import axios from 'axios';
 const App: React.FC = () => {
 
   const [user, setUser] = useState<User>({
-    id: '67cdd0e8cfa6df744b82ebba'
+    id: '67e1c77552f341264138101b'
   });
 
   useEffect(() => {
     axios
       .get('http://localhost:8000/users/')
       .then(response => {
-        setUser(Array.isArray(response.data.users) ? response.data.users[0] : {id: '67cdd0e8cfa6df744b82ebba'});
+        setUser(Array.isArray(response.data.users) ? response.data.users[0] : {id: '67e1c77552f341264138101b'});
       });
   }, []);
 

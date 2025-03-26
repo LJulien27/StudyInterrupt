@@ -130,28 +130,32 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
     });
     const finalScore = Math.round((correctAnswers / Questions.length) * 100);
     //update contest grade
+
+    /*
     const contest_response = await axios.get(`http://localhost:8000/sessions/67d4ab26a97b4f67f45759c0/contests`);
     setContest(contest_response.data.contest)
     console.log(contest)
+    
     if (contest && contest.grades) {
 
-    let participantIndex = contest.participants.findIndex(
-      (participant: Username) => participant.id == "67d4aafda97b4f67f45759bf"
-    );
-    console.log(finalScore)
-    contest.grades[participantIndex] = finalScore;
+      let participantIndex = contest.participants.findIndex(
+        (participant: Username) => participant.id == "67d4aafda97b4f67f45759bf"
+      );
+      console.log(finalScore)
+      contest.grades[participantIndex] = finalScore;
 
-    const contestToSend: ContestNoId = {
-      "grades": contest.grades,
-    "participants": contest.participants,
-    "session_id": contest.session_id
-    }
+      const contestToSend: ContestNoId = {
+        "grades": contest.grades,
+      "participants": contest.participants,
+      "session_id": contest.session_id
+      }
 
-    
       
-      console.log(contestToSend)
-      const update_contest = await axios.put(`http://localhost:8000/contests/${contest._id}`, contestToSend);
+        
+        console.log(contestToSend)
+        const update_contest = await axios.put(`http://localhost:8000/contests/${contest._id}`, contestToSend);
     }
+    */
 
     
 
