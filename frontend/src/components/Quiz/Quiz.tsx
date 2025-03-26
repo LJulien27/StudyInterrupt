@@ -1,51 +1,100 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Container, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Question, { QuestionType } from '../../types/Question';
+import axios from 'axios';
+import User from '../../types/User';
+import { Username } from '../../types/Sessions';
 
 interface Quiz {
-  id: number;
-  name: string;
-  className: string;
-  questions: Question[];
+  _id: string;
+  title: string;
+  creator_id: string;
+  session_id: string;
+  created_at: string;
 }
 
-// Dummy quiz data
-const quizzes: Quiz[] = [
-  {
-    id: 1,
-    name: "Math Quiz",
-    className: "Math 101",
-    questions: [
-      { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
-      { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
-      { type: QuestionType.FILLBLANK, text: "The capital of France is _____", body: "", answer: "Paris" },
-      { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
-    ],
-  },
-  {
-    id: 2,
-    name: "Math Quiz 2",
-    className: "Math 101",
-    questions: [
-      { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
-      { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
-      { type: QuestionType.FILLBLANK, text: "The capital of France is", body: "", answer: "Paris" },
-      { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
-    ],
-  },
-];
+interface QuizProps {
+  user: User;
+}
 
-const Quiz = () => {
+interface Contest {
+  _id: string;
+  session_id: string;
+  participants: Username[];
+  grades: number[]
+}
+
+interface ContestNoId {
+  session_id: string;
+  participants: Username[];
+  grades: number[]
+}
+
+
+// Dummy quiz data
+// let quizzes: Quiz[] = [
+//   {
+//     id: 1,
+//     name: "Math Quiz",
+//     className: "Math 101",
+//     questions: [
+//       { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
+//       { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
+//       { type: QuestionType.FILLBLANK, text: "The capital of France is _____", body: "", answer: "Paris" },
+//       { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
+//     ],
+//   },
+//   {
+//     id: 2,
+//     name: "Math Quiz 2",
+//     className: "Math 101",
+//     questions: [
+//       { type: QuestionType.SINGLESELECT, text: "What is 2+2?", body: "3&!!&4&!!&5", answer: "4" },
+//       { type: QuestionType.MULTISELECT, text: "Select even numbers:", body: "1&!!&2&!!&3&!!&4", answer: "2&!!&4" },
+//       { type: QuestionType.FILLBLANK, text: "The capital of France is", body: "", answer: "Paris" },
+//       { type: QuestionType.ASSOCIATION, text: "Match countries to capitals", body: "France&!!&USA", answer: "Paris&!!&Washington" },
+//     ],
+//   },
+// ];
+
+
+
+const Quiz: React.FC<QuizProps> = ({ user }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
+  const [contest, setContest] = useState<Contest | null>(null);
+  const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string | string[] }>({});
   const [score, setScore] = useState<number | null>(null);
+  const [Quizes, setQuizes] = useState<Quiz[]>([]);
+  const [Questions, setQuestions] = useState<Question[]>([]);
+
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      const response = await axios.get(`http://localhost:8000/users/${user.id}/quizzes`);//replace with route user id
+      setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
+      
+    };
+  
+    fetchQuizzes();
+  }, []); //replace with route user id
+
+  const handleQuizSelect = async (quiz: Quiz) => {
+    try {
+      const response = await axios.get(`http://localhost:8000/quizzes/${quiz._id}/questions`); // Fetch full quiz details
+      setQuestions(Array.isArray(response.data.questions) ? response.data.questions : []); // Update state with fetched quiz
+      setSelectedQuiz(quiz)
+    } catch (error) {
+      console.error("Error fetching quiz questions:", error);
+      alert("Failed to load quiz questions. Please try again.");
+    }
+  };
 
   const handleAnswerChange = (index: number, value: string | string[]) => {
     setAnswers((prev) => ({ ...prev, [index]: value }));
   };
 
-  const handleSubmit = () => {
-    const unansweredQuestions = selectedQuiz?.questions
+  const handleSubmit = async () => {
+    const unansweredQuestions = Questions
       .map((question, index) => {
         if (!answers[index]) return `Q${index + 1}`;
         if (question.type === QuestionType.ASSOCIATION) {
@@ -62,7 +111,7 @@ const Quiz = () => {
     }
 
     let correctAnswers = 0;
-    selectedQuiz?.questions.forEach((question, index) => {
+    Questions.forEach((question, index) => {
       const userAnswer = answers[index];
       if (!userAnswer) return;
 
@@ -79,8 +128,34 @@ const Quiz = () => {
         }
       }
     });
+    const finalScore = Math.round((correctAnswers / Questions.length) * 100);
+    //update contest grade
+    const contest_response = await axios.get(`http://localhost:8000/sessions/67d4ab26a97b4f67f45759c0/contests`);
+    setContest(contest_response.data.contest)
+    console.log(contest)
+    if (contest && contest.grades) {
 
-    const finalScore = Math.round((correctAnswers / selectedQuiz!.questions.length) * 100);
+    let participantIndex = contest.participants.findIndex(
+      (participant: Username) => participant.id == "67d4aafda97b4f67f45759bf"
+    );
+    console.log(finalScore)
+    contest.grades[participantIndex] = finalScore;
+
+    const contestToSend: ContestNoId = {
+      "grades": contest.grades,
+    "participants": contest.participants,
+    "session_id": contest.session_id
+    }
+
+    
+      
+      console.log(contestToSend)
+      const update_contest = await axios.put(`http://localhost:8000/contests/${contest._id}`, contestToSend);
+    }
+
+    
+
+    
     setScore(finalScore);
     alert(`Quiz Submitted! You scored ${finalScore}%`);
   };
@@ -92,21 +167,21 @@ const Quiz = () => {
       {!selectedQuiz ? (
         <>
           <h4>Select a Quiz:</h4>
-          {quizzes.map((quiz) => (
-            <Button key={quiz.id} variant="primary" className="m-2" onClick={() => setSelectedQuiz(quiz)}>
-              {quiz.name} ({quiz.className})
-            </Button>
-          ))}
+          {Quizes.map((quiz) => (
+          <Button key={quiz._id} variant="primary" className="m-2" onClick={() => handleQuizSelect(quiz)}>
+            {quiz.title}
+          </Button>
+        ))}
         </>
       ) : (
         <>
-          <h3>{selectedQuiz.name}</h3>
-          <p>Class: {selectedQuiz.className}</p>
-          
+          <h3>{selectedQuiz.title}</h3>
           <Form>
-            {selectedQuiz.questions.map((question, index) => (
+            {Questions.map((question, index) => (
               <div key={index} className="mb-3">
-                <strong>Q{index + 1}. {question.text}</strong>
+                {question.type !== QuestionType.FILLBLANK && (
+                  <strong>Q{index + 1}. {question.text}</strong>
+                )}
                 
                 {question.type === QuestionType.SINGLESELECT && (
                   <Form.Select onChange={(e) => handleAnswerChange(index, e.target.value)}>
@@ -136,9 +211,12 @@ const Quiz = () => {
                 )}
 
                 {question.type === QuestionType.FILLBLANK && (
-                  <FloatingLabel controlId={`fillblank-${index}`} label="Your Answer">
-                    <Form.Control type="text" onChange={(e) => handleAnswerChange(index, e.target.value)} />
-                  </FloatingLabel>
+                  <div>
+                    <strong>Q{index + 1}. {question.text} ______ {question.body}</strong>
+                    <FloatingLabel controlId={`fillblank-${index}`} label="Your Answer">
+                      <Form.Control type="text" onChange={(e) => handleAnswerChange(index, e.target.value)} />
+                    </FloatingLabel>
+                  </div>
                 )}
 
                 {question.type === QuestionType.ASSOCIATION && (
