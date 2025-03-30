@@ -54,7 +54,7 @@ async def get_user_by_id(id: str):
 
 @app.get("/users/")
 async def get_users():
-    return {"users": crud.get_users()}
+    return crud.get_users()
 
 @app.get("/users/{id}/sessions")
 async def get_users_sessions(id: str):

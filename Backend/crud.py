@@ -119,11 +119,10 @@ def get_sessions_contest(session_id):
         if not sessions_collection.find_one({"_id": obj_id}):
             raise HTTPException(status_code=404, detail="Session not found")
 
-        contests = list(contests_collection.find({"session_id": session_id}))
-        for contest in contests:
-            contest["_id"] = str(contest["_id"])
+        contest = contests_collection.find_one({"session_id": session_id})
+        contest["_id"] = str(contest["_id"])
 
-        return {"message": "No contests found for this session"} if not contests else {"contests": contests}
+        return {"message": "No contests found for this session"} if not contest else {"contest": contest}
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
