@@ -178,24 +178,19 @@ def test_get_user_quizzes_details(user_id, expected_quizzes):
         assert "creator_id" in quiz, f"Creator ID missing in quiz {expected_quiz['id']}"
         assert quiz["creator_id"] == expected_quiz["creator_id"], f"Incorrect creator ID in quiz {expected_quiz['id']}"
 
-@pytest.mark.parametrize("session_id, expected_contests", [
-    (VALID_SESSION_ID, [{"id": VALID_CONTEST_ID, "session_id": VALID_SESSION_ID}]),
+@pytest.mark.parametrize("session_id", [
+    (VALID_SESSION_ID)
 ])
 
-def test_get_session_contests_details(session_id, expected_contests):
+def test_get_session_contests_details(session_id):
     """Test if the retrieved session contests contain correct details."""
     response = client.get(f"/sessions/{session_id}/contests")
     assert response.status_code == 200, f"Expected 200, got {response.status_code} for {session_id}"
     assert response.headers["content-type"] == "application/json"
 
-    contests_data = response.json()["contests"]
-    assert isinstance(contests_data, list), f"Expected list, got {type(contests_data)} for {session_id}"
-
-    for expected_contest in expected_contests:
-        contest = next((c for c in contests_data if c["_id"] == expected_contest["id"]), None)
-        assert contest, f"Contest {expected_contest['id']} not found for session {session_id}"
-        assert "session_id" in contest, f"Session ID missing in contest {expected_contest['id']}"
-        assert contest["session_id"] == expected_contest["session_id"], f"Incorrect session ID in contest {expected_contest['id']}"
+    contest_data = response.json()["contest"]
+    assert contest_data['_id'] == VALID_CONTEST_ID
+    assert contest_data['session_id'] == VALID_SESSION_ID
 
 @pytest.mark.parametrize("session_id, expected_quizzes", [
     (VALID_SESSION_ID, [{"id": VALID_QUIZ_ID, "session_id": VALID_SESSION_ID}]),
@@ -387,13 +382,12 @@ def test_create_user_session_success(mock_db):
         "start_time": datetime.now().isoformat(),
         "end_time": datetime.now().isoformat(),
         "creator_id": VALID_USER_ID,
-        "interrupts": [],
-        "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
+        "participants": [{"id": VALID_USER_ID, "username": "Andre"}],
         "quiz_id": None
     }
 
     # Send POST request
-    response = client.post(f"/users/{VALID_USER_ID}/sessions", json=mock_session)
+    response = client.post(f"/sessions", json=mock_session)
 
     # Assertions
     assert response.status_code == 201
@@ -402,20 +396,19 @@ def test_create_user_session_success(mock_db):
     assert data["creator_id"] == VALID_USER_ID
     assert "start_time" in data
     assert "end_time" in data
-    assert "interrupts" in data
     assert "participants" in data
 
 def test_create_contest_success(mock_db):
 
     # Create a mock contest
     mock_contest = {
-        "grades": ["A", "B", "C"],
+        "grades": [1, 2, 3],
         "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
         "session_id": VALID_SESSION_ID,
     }
 
     # Send POST request
-    response = client.post(f"/users/{VALID_USER_ID}/contests", json=mock_contest)
+    response = client.post(f"/contests", json=mock_contest)
 
     # Assertions
     assert response.status_code == 201
@@ -434,14 +427,10 @@ def test_create_quiz_success(mock_db):
         "creator_id": VALID_USER_ID,
         "session_id": VALID_SESSION_ID,
         "created_at": datetime.now().isoformat(),
-        "questions": [
-            "65f69cd9185476aab56284d3",  # Example question ID
-            "65f69cd9185476aab56284d4"
-        ]
     }
 
     # Send POST request
-    response = client.post(f"/users/{VALID_USER_ID}/quizzes", json=mock_quiz)
+    response = client.post(f"/quizzes", json=mock_quiz)
 
     # Assertions
     assert response.status_code == 201
@@ -452,9 +441,6 @@ def test_create_quiz_success(mock_db):
     assert data["creator_id"] == VALID_USER_ID
     assert "session_id" in data
     assert data["session_id"] == VALID_SESSION_ID
-    assert "questions" in data
-    assert len(data["questions"]) == 2
-    assert data["questions"] == ["65f69cd9185476aab56284d3", "65f69cd9185476aab56284d4"]
 
 def test_create_interrupt_success(mock_db):
 
@@ -468,7 +454,7 @@ def test_create_interrupt_success(mock_db):
     }
 
     # Send POST request
-    response = client.post(f"/sessions/{VALID_SESSION_ID}/interrupts", json=mock_interrupt)
+    response = client.post(f"/interrupts", json=mock_interrupt)
 
     # Assertions
     assert response.status_code == 201
@@ -489,22 +475,22 @@ def test_create_question_success(mock_db):
     # Create a mock question
     mock_question = {
         "type": 1,
-        "title": "What is FastAPI?",
+        "text": "What is FastAPI?",
         "body": "Explain FastAPI and its benefits.",
         "answer": "FastAPI is a modern web framework for building APIs with Python.",
         "quiz_id": VALID_QUIZ_ID # Ensure the quiz ID exists in the mock DB
     }
 
     # Send POST request
-    response = client.post(f"/quizzes/{VALID_QUIZ_ID}/questions", json=mock_question)
+    response = client.post(f"/questions", json=mock_question)
 
     # Assertions
     assert response.status_code == 201
     data = response.json()
     assert "type" in data
     assert data["type"] == 1
-    assert "title" in data
-    assert data["title"] == "What is FastAPI?"
+    assert "text" in data
+    assert data["text"] == "What is FastAPI?"
     assert "body" in data
     assert data["body"] == "Explain FastAPI and its benefits."
     assert "answer" in data
@@ -548,7 +534,7 @@ def test_update_session_success(mock_db):
 
 def test_update_contest_success(mock_db):
     mock_contest = {
-        "grades": ["A", "B", "C"],
+        "grades": [1, 2, 3],
         "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
         "session_id": VALID_SESSION_ID,
     }
@@ -593,7 +579,7 @@ def test_update_question_success(mock_db):
 
     mock_question = {
         "type": 1,
-        "title": "What is FastAPI?",
+        "text": "What is FastAPI?",
         "body": "Explain FastAPI and its benefits.",
         "answer": "FastAPI is a modern web framework for building APIs with Python.",
         "quiz_id": VALID_QUIZ_ID
