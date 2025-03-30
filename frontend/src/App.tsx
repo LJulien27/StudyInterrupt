@@ -29,6 +29,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      {/* Navigation bar for various links in our webapp */}
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
         <Container>
           <Navbar.Brand as={Link} to="/">StudyInterrupt</Navbar.Brand>
@@ -46,6 +47,7 @@ const App: React.FC = () => {
       </Navbar>
 
       <Container>
+        {/* Routing part where each path is assigned their corresponding react component */}
         <Routes>
           <Route path="/quiz" element={<Quiz user={user}/>} />
           <Route path="/create-quiz" element={<QuizCreate user={user}/>} />
