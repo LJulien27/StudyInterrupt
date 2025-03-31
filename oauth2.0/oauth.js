@@ -1,5 +1,9 @@
+
+// load script with web page
 window.onload = function() {
+  // Oauth2.0 authentication:
   document.querySelector('button').addEventListener('click', function() {
+    // retreive token
     chrome.identity.getAuthToken({interactive: true}, function(token) {
       let init = {
         method: 'GET',
