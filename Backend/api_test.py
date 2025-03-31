@@ -322,7 +322,9 @@ def test_get_invalid_id_requests(endpoint):
 
 # POST requests
 
+# ✅ Test Adding a User Successfully
 def test_add_user_success(mock_db):
+    # Prepare mock user data for a successful request
     mock_user = {
         "username": "testuser",
         "email": "test@example.com",
@@ -333,17 +335,24 @@ def test_add_user_success(mock_db):
         "default_max_range": 30
     }
 
+    # Make POST request to create a user
     response = client.post("/users", json=mock_user)
 
+    # Check if status code is 200 (successful user creation)
     assert response.status_code == 200
 
+    # Parse response data
     response_data = response.json()
 
+    # Check that the returned username and email match the input
     assert response_data["username"] == mock_user["username"]
     assert response_data["email"] == mock_user["email"]
-    #assert "password" not in response_data  # Ensure password is not exposed in response
+    # Ensure password is not exposed in the response (important for security)
+    # assert "password" not in response_data
 
+# ✅ Test Adding a User with Missing Fields
 def test_add_user_missing_fields():
+    # Prepare incomplete mock user data (username is missing)
     incomplete_user = {
         "username": "",
         "email": "test@example.com",
@@ -353,12 +362,18 @@ def test_add_user_missing_fields():
         "default_min_range": 30,
         "default_max_range": 30
     }
+
+    # Make POST request to create a user with missing fields
     response = client.post("/users", json=incomplete_user)
+
+    # Check if status code is 400 (Bad Request due to missing fields)
     assert response.status_code == 400
+    # Ensure the error message indicates missing username, email, and password
     assert response.json()["detail"] == "Username, email, and password are required"
 
-
+# ✅ Test Adding a User with Duplicate Email
 def test_add_user_duplicate_email(mock_db):
+    # Prepare mock user data for a duplicate email scenario
     mock_user = {
         "username": "testuser",
         "email": "andre@example.com",
@@ -369,10 +384,14 @@ def test_add_user_duplicate_email(mock_db):
         "default_max_range": 30
     }
 
+    # Make POST request to create a user
     response = client.post("/users", json=mock_user)
 
+    # Check if status code is 409 (Conflict due to duplicate email)
     assert response.status_code == 409
+    # Ensure the error message indicates email is already registered
     assert response.json()["detail"] == "Email already registered"
+
 
 def test_create_user_session_success(mock_db):
 
@@ -501,7 +520,9 @@ def test_create_question_success(mock_db):
 
 #PUT tests
 
+# ✅ Test Updating a User Successfully
 def test_update_user_success(mock_db):
+    # Prepare mock user data for updating the user
     mock_user = {
         "username": "testuser",
         "email": "test@example.com",
@@ -512,12 +533,17 @@ def test_update_user_success(mock_db):
         "default_max_range": 30
     }
 
+    # Make PUT request to update the user
     response = client.put(f"/users/{VALID_USER_ID}", json=mock_user)
 
+    # Check if status code is 200 (successful user update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "User updated successfully"
 
+# ✅ Test Updating a Session Successfully
 def test_update_session_success(mock_db):
+    # Prepare mock session data for updating the session
     mock_session = {
         "start_time": datetime.now().isoformat(),
         "end_time": datetime.now().isoformat(),
@@ -527,23 +553,34 @@ def test_update_session_success(mock_db):
         "quiz_id": None
     }
 
+    # Make PUT request to update the session
     response = client.put(f"/sessions/{VALID_SESSION_ID}", json=mock_session)
 
+    # Check if status code is 200 (successful session update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "Session updated successfully"
 
+# ✅ Test Updating a Contest Successfully
 def test_update_contest_success(mock_db):
+    # Prepare mock contest data for updating the contest
     mock_contest = {
         "grades": [1, 2, 3],
         "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
         "session_id": VALID_SESSION_ID,
     }
+
+    # Make PUT request to update the contest
     response = client.put(f"/contests/{VALID_CONTEST_ID}", json=mock_contest)
 
+    # Check if status code is 200 (successful contest update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "Contest updated successfully"
 
+# ✅ Test Updating a Quiz Successfully
 def test_update_quiz_success(mock_db):
+    # Prepare mock quiz data for updating the quiz
     mock_quiz = {
         "title": "Sample Quiz",
         "creator_id": VALID_USER_ID,
@@ -555,13 +592,17 @@ def test_update_quiz_success(mock_db):
         ]
     }
 
+    # Make PUT request to update the quiz
     response = client.put(f"/quizzes/{VALID_QUIZ_ID}", json=mock_quiz)
 
+    # Check if status code is 200 (successful quiz update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "Quiz updated successfully"
 
+# ✅ Test Updating an Interrupt Successfully
 def test_update_interrupt_success(mock_db):
-
+    # Prepare mock interrupt data for updating the interrupt
     mock_interrupt = {
         "type": 1,
         "link": "http://example.com",
@@ -570,13 +611,17 @@ def test_update_interrupt_success(mock_db):
         "session_id": VALID_SESSION_ID  # Optional session_id (could be None for no session association)
     }
 
+    # Make PUT request to update the interrupt
     response = client.put(f"/interrupts/{VALID_INTERRUPT_ID}", json=mock_interrupt)
 
+    # Check if status code is 200 (successful interrupt update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "Interrupt updated successfully"
 
+# ✅ Test Updating a Question Successfully
 def test_update_question_success(mock_db):
-
+    # Prepare mock question data for updating the question
     mock_question = {
         "type": 1,
         "text": "What is FastAPI?",
@@ -585,10 +630,14 @@ def test_update_question_success(mock_db):
         "quiz_id": VALID_QUIZ_ID
     }
 
+    # Make PUT request to update the question
     response = client.put(f"/questions/{VALID_QUESTION_ID}", json=mock_question)
 
+    # Check if status code is 200 (successful question update)
     assert response.status_code == 200
+    # Ensure the success message is returned
     assert response.json()["message"] == "Question updated successfully"
+
 
 NEW_USERS = [{"id": "65a69cd9185476aab56284df", "username": "John"}]
 EXISTING_USER = [{"id": "65b8ba98a6c4a46585522b55", "username": "Andre"}]
