@@ -79,51 +79,51 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
   const renderQuestion = (question: Question, index: number) => {
     switch (question.type) {
       case QuestionType.SINGLESELECT:
-         return (
-           <div>
-             <strong>{index+1}. Single Select:</strong> {question.text}
-             <ul>
-               {question.body.split('&!!&').map((option, idx) => (
-                 <li key={idx}>{option}</li>
-               ))}
-             </ul>
-             <p><strong>Answer:</strong> {question.answer}</p>
-           </div>
-         );
-       case QuestionType.MULTISELECT:
-         return (
-           <div>
-             <strong>{index+1}. Multi Select:</strong> {question.text}
-             <ul>
-               {question.body.split('&!!&').map((option, idx) => (
-                 <li key={idx}>{option}</li>
-               ))}
-             </ul>
-             <p><strong>Answers:</strong> {question.answer.split('&!!&').join(', ')}</p>
-           </div>
-         );
-       case QuestionType.FILLBLANK:
-         return (
-           <div>
-             <strong>{index+1}. Fill in the Blank:</strong> {question.text} ______ {question.body}
-             <p><strong>Answer:</strong> {question.answer}</p>
-           </div>
-         );
-       case QuestionType.ASSOCIATION:
-         return (
-           <div>
-             <strong>{index+1}. Association:</strong> {question.text}
-             <ul>
-               {question.body.split('&!!&').map((leftOption, idx) => (
-                 <li key={idx}>{leftOption} - {question.answer.split('&!!&')[idx]}</li>
-               ))}
-             </ul>
-           </div>
-         );
-       default:
-         return null;
-     }
-   };
+        return (
+          <div>
+            <strong>{index+1}. Single Select:</strong> {question.text}
+            <ul>
+              {question.body.split('&!!&').map((option, idx) => (
+                <li key={idx}>{option}</li>
+              ))}
+            </ul>
+            <p><strong>Answer:</strong> {question.answer}</p>
+          </div>
+        );
+      case QuestionType.MULTISELECT:
+        return (
+          <div>
+            <strong>{index+1}. Multi Select:</strong> {question.text}
+            <ul>
+              {question.body.split('&!!&').map((option, idx) => (
+                <li key={idx}>{option}</li>
+              ))}
+            </ul>
+            <p><strong>Answers:</strong> {question.answer.split('&!!&').join(', ')}</p>
+          </div>
+        );
+      case QuestionType.FILLBLANK:
+        return (
+          <div>
+            <strong>{index+1}. Fill in the Blank:</strong> {question.text} ______ {question.body}
+            <p><strong>Answer:</strong> {question.answer}</p>
+          </div>
+        );
+      case QuestionType.ASSOCIATION:
+        return (
+          <div>
+            <strong>{index+1}. Association:</strong> {question.text}
+            <ul>
+              {question.body.split('&!!&').map((leftOption, idx) => (
+                <li key={idx}>{leftOption} - {question.answer.split('&!!&')[idx]}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <QuizCreateWrapper>
