@@ -8,6 +8,7 @@ import Quiz from './components/Quiz/Quiz';
 import History from './components/History/History';
 import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
+import NotFound from './components/NotFound/NotFound';
 import User from './types/User';
 import axios from 'axios';
 
@@ -53,6 +54,7 @@ const App: React.FC = () => {
           <Route path="/history" element={<History user={user}/>} />
           <Route path="/my-sessions" element={<MySessions user={user}/>} />
           <Route path="/my-quiz-content" element={<MyQuizContent user={user}/>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>
     </Router>
