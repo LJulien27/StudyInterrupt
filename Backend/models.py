@@ -2,48 +2,56 @@ from pydantic import BaseModel, Field
 from typing import List
 from datetime import datetime
 
-#API body models. This is the info required to send in the body of a request
+# API body models - defines the structure of data for requests
+
+# Model for a User object
 class User(BaseModel):
     username: str
     email: str
     password: str
     created_at: datetime
-    default_session_length: int | None = 180
-    default_min_range: int | None = 30
-    default_max_range: int | None = 30
+    default_session_length: int | None = 180  # Default session length in minutes
+    default_min_range: int | None = 30        # Minimum range for intervals
+    default_max_range: int | None = 30        # Maximum range for intervals
 
+# Model for a Username reference
 class Username(BaseModel):
     id: str
     username: str
 
+# Model for a Contest object
 class Contest(BaseModel):
-    grades: List[int] | None = None
-    participants: List[Username]
-    session_id: str
+    grades: List[int] | None = None           # List of grades, optional
+    participants: List[Username]              # List of users participating
+    session_id: str                           # Associated session ID
 
+# Model for a Question object
 class Question(BaseModel):
-    type: int
-    text: str
-    body: str
-    answer: str
-    quiz_id: str
+    type: int                                 # Question type identifier
+    text: str                                 # Question text
+    body: str                                 # Additional question details
+    answer: str                               # Correct answer
+    quiz_id: str                              # Associated quiz ID
 
+# Model for a Quiz object
 class Quizz(BaseModel):
-    title: str
-    creator_id: str
-    session_id: str | None = None
-    created_at: datetime
+    title: str                                # Quiz title
+    creator_id: str                           # ID of the quiz creator
+    session_id: str | None = None             # Associated session ID, optional
+    created_at: datetime                      # Creation timestamp
 
+# Model for an Interrupt object
 class Interrupt(BaseModel):
-    type: int
-    link: str
-    interrupt_time: str
-    creator_id : str
-    session_id: str | None = None
+    type: int                                 # Interrupt type identifier
+    link: str                                 # Link associated with the interrupt
+    interrupt_time: str                       # Time of the interrupt
+    creator_id: str                           # ID of the creator
+    session_id: str | None = None             # Associated session ID, optional
 
+# Model for a Session object
 class Session(BaseModel):
-    start_time: datetime
-    end_time: datetime
-    creator_id: str
-    participants: List[Username]
-    quiz_id: str | None = None
+    start_time: datetime                      # Start time of the session
+    end_time: datetime                        # End time of the session
+    creator_id: str                           # ID of the creator
+    participants: List[Username]              # List of participants
+    quiz_id: str | None = None                # Associated quiz ID, optional

@@ -13,7 +13,7 @@ const MyQuizContent: React.FC<MyQuizContentProps> = ({ user }) => {
       <aside className="quiz-content-left"></aside>
       <main className="quiz-content-middle">
         <div className="main-grid">
-
+          {/* Container used later in development for uploading files */}
           <div className="subgrid-add-file">
             <div className="item-subgrid-add-file-1">
               <button>ADD FILE</button>
@@ -23,6 +23,7 @@ const MyQuizContent: React.FC<MyQuizContentProps> = ({ user }) => {
               <button>UPLOAD</button>
             </div>
           </div>
+          {/* Container used later in development for keeping track of uploaded files */}
           <div className="subgrid-uploaded-files-container">
             <div className="uploaded-files-title">Uploaded Files</div>
             <div className="uploaded-files-item">EVS1101_Chapter1_Introduction.pdf</div>
@@ -30,6 +31,7 @@ const MyQuizContent: React.FC<MyQuizContentProps> = ({ user }) => {
             <div className="uploaded-files-item">EVS1101_Chapter3_Geosphere.pdf</div>
             <div className="uploaded-files-item">EVS1101_Chapter4_Hydrosphere.pdf</div>
           </div>
+          {/* Container used later in development for AI generate quiz material */}
           <div className="subgrid-generated-material">
             <div className="generated-material-title">Generated Material</div>
           </div>

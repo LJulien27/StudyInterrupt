@@ -1,25 +1,30 @@
+// Importing necessary libraries and components
 import React, { useState } from 'react';
 import axios from 'axios';
-import { QuizCreateWrapper } from './QuizCreate.styled';
-import QuestionModal from './QuestionModal/QuestionModal';
-import OopsModal from '../Default/OopsModal';
-import { Button, Form, FloatingLabel, Card } from 'react-bootstrap';
-import Question, {QuestionType} from '../../types/Question';
-import User from '../../types/User';
+import { QuizCreateWrapper } from './QuizCreate.styled'; // Styled wrapper for the component
+import QuestionModal from './QuestionModal/QuestionModal'; // Modal for adding/editing questions
+import OopsModal from '../Default/OopsModal'; // Modal for displaying errors
+import { Button, Form, FloatingLabel, Card } from 'react-bootstrap'; // Bootstrap components for UI
+import Question, { QuestionType } from '../../types/Question'; // Question type definitions
+import User from '../../types/User'; // User type definition
 
+// Defining the props interface for the QuizCreate component
 interface QuizCreateProps {
-  user: User;
+  user: User; // The current user object
 }
 
+// Functional component to create a quiz
 const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
-  const [quizName, setQuizName] = useState('');
-  const [quizClass, setQuizClass] = useState('');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  // State variables for managing quiz details
+  const [quizName, setQuizName] = useState(''); // Quiz name
+  const [quizClass, setQuizClass] = useState(''); // Class name
+  const [questions, setQuestions] = useState<Question[]>([]); // List of questions
+  const [isModalOpen, setIsModalOpen] = useState(false); // State for question modal visibility
+  const [editingIndex, setEditingIndex] = useState<number | null>(null); // Index of the question being edited
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false); // State for error modal visibility
+  const [errorMessage, setErrorMessage] = useState(''); // Error message to display
 
+  // Function to handle adding or editing a question
   const handleAddQuestion = (newQuestion: Question) => {
     if (editingIndex !== null) {
       // Update an existing question
@@ -27,61 +32,70 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
       updatedQuestions[editingIndex] = newQuestion;
       setQuestions(updatedQuestions);
     } else {
-      // Add new question
+      // Add a new question
       setQuestions([...questions, newQuestion]);
     }
-    setIsModalOpen(false);
-    setEditingIndex(null); // Reset after saving
+    setIsModalOpen(false); // Close the modal
+    setEditingIndex(null); // Reset editing index
   };
 
+  // Function to handle editing a question
   const handleEditQuestion = (index: number) => {
-    setEditingIndex(index);
-    setIsModalOpen(true);
+    setEditingIndex(index); // Set the index of the question being edited
+    setIsModalOpen(true); // Open the modal
   };
 
+  // Function to handle deleting a question
   const handleDeleteQuestion = (index: number) => {
-    setQuestions(questions.filter((_, i) => i !== index));
+    setQuestions(questions.filter((_, i) => i !== index)); // Remove the question from the list
   };
 
+  // Function to handle submitting the quiz
   const handleSubmitQuiz = async () => {
     const quizObject = {
-      title: quizName,
-      creator_id: user.id, // replace with userID once implemented
-      session_id: null,
-      created_at: new Date(),
+      title: quizName, // Quiz title
+      creator_id: user.id, // User ID of the quiz creator
+      session_id: null, // Placeholder for session ID
+      created_at: new Date(), // Current timestamp
     };
+
     try {
+      // Submit the quiz to the backend
       const QuizResponse = await axios.post('http://localhost:8000/quizzes/', quizObject);
       console.log(QuizResponse.data);
-      const quizId = QuizResponse.data._id
+      const quizId = QuizResponse.data._id;
+
+      // Submit each question associated with the quiz
       for (let i = 0; i < questions.length; i++) {
         console.log("Submitting question: ", questions[i]);
         let question = questions[i];
         let questionObject = {
-          quiz_id: quizId,
-          type: question.type,
-          text: question.text,
-          body: question.body,
-          answer: question.answer
+          quiz_id: quizId, // ID of the quiz
+          type: question.type, // Question type
+          text: question.text, // Question text
+          body: question.body, // Question body (e.g., options)
+          answer: question.answer, // Correct answer(s)
         };
-        console.log(questionObject) // debug purposes
+        console.log(questionObject); // Debugging purposes
         let response = await axios.post('http://localhost:8000/questions/', questionObject);
         console.log(response.data);
       }
-      alert("Your quiz has been submitted");
+
+      alert("Your quiz has been submitted"); // Notify the user of successful submission
     } catch (error) {
       console.error("Error submitting quiz: ", error);
-      setErrorMessage(`Error: ${error || 'An unknown error occurred.'}`);
-      setIsErrorModalOpen(true);
+      setErrorMessage(`Error: ${error || 'An unknown error occurred.'}`); // Set error message
+      setIsErrorModalOpen(true); // Open the error modal
     }
   };
 
+  // Function to render a question based on its type
   const renderQuestion = (question: Question, index: number) => {
     switch (question.type) {
       case QuestionType.SINGLESELECT:
         return (
           <div>
-            <strong>{index+1}. Single Select:</strong> {question.text}
+            <strong>{index + 1}. Single Select:</strong> {question.text}
             <ul>
               {question.body.split('&!!&').map((option, idx) => (
                 <li key={idx}>{option}</li>
@@ -93,7 +107,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
       case QuestionType.MULTISELECT:
         return (
           <div>
-            <strong>{index+1}. Multi Select:</strong> {question.text}
+            <strong>{index + 1}. Multi Select:</strong> {question.text}
             <ul>
               {question.body.split('&!!&').map((option, idx) => (
                 <li key={idx}>{option}</li>
@@ -105,14 +119,14 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
       case QuestionType.FILLBLANK:
         return (
           <div>
-            <strong>{index+1}. Fill in the Blank:</strong> {question.text} ______ {question.body}
+            <strong>{index + 1}. Fill in the Blank:</strong> {question.text} ______ {question.body}
             <p><strong>Answer:</strong> {question.answer}</p>
           </div>
         );
       case QuestionType.ASSOCIATION:
         return (
           <div>
-            <strong>{index+1}. Association:</strong> {question.text}
+            <strong>{index + 1}. Association:</strong> {question.text}
             <ul>
               {question.body.split('&!!&').map((leftOption, idx) => (
                 <li key={idx}>{leftOption} - {question.answer.split('&!!&')[idx]}</li>
@@ -127,8 +141,10 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
 
   return (
     <QuizCreateWrapper>
+      {/* Quiz creation form */}
       <h2>Create a Quiz</h2>
       <form>
+        {/* Input for quiz name */}
         <FloatingLabel controlId="quizName" label="Quiz Name" className="mb-3">
           <Form.Control
             type="text"
@@ -139,6 +155,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
           />
         </FloatingLabel>
 
+        {/* Input for class name */}
         <FloatingLabel controlId="quizClass" label="Class" className="mb-3">
           <Form.Control
             type="text"
@@ -150,6 +167,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
         </FloatingLabel>
       </form>
 
+      {/* List of questions */}
       <h3>Questions</h3>
       <ul>
         {questions.map((q, index) => (
@@ -167,6 +185,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
         ))}
       </ul>
 
+      {/* Buttons to add a question or submit the quiz */}
       <Button variant="primary" onClick={() => { setEditingIndex(null); setIsModalOpen(true); }}>
         Add Question
       </Button>
@@ -174,12 +193,15 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
         Submit Quiz
       </Button>
 
+      {/* Modal for adding/editing questions */}
       <QuestionModal
         show={isModalOpen}
         onHide={() => { setIsModalOpen(false); setEditingIndex(null); }}
         onSave={handleAddQuestion}
         editingQuestion={editingIndex !== null ? questions[editingIndex] : null}
       />
+
+      {/* Modal for displaying errors */}
       <OopsModal
         show={isErrorModalOpen}
         onHide={() => setIsErrorModalOpen(false)}
@@ -189,4 +211,5 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
   );
 };
 
+// Exporting the QuizCreate component for use in other parts of the application
 export default QuizCreate;
