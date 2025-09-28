@@ -46,6 +46,8 @@ const App: React.FC = () => {
               <Nav.Link as={Link} to="/user-form">Parameters</Nav.Link>
               <Nav.Link as={Link} to="/my-sessions">Sessions</Nav.Link>
               <Nav.Link as={Link} to="/my-quiz-content">Generated Content</Nav.Link>
+              {/* New button to start a session */}
+              <Nav.Link as={Link} to="/create-session" style={{ fontWeight: 'bold', color: '#0d6efd' }}>Start a Session</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
