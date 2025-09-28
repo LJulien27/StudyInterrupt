@@ -9,6 +9,7 @@ import History from './components/History/History';
 import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
 import NotFound from './components/NotFound/NotFound';
+import CreateSession from './components/CreateSession/CreateSession';
 import User from './types/User';
 import axios from 'axios';
 
@@ -65,6 +66,8 @@ const App: React.FC = () => {
           <Route path="/my-sessions" element={<MySessions user={user}/>} />
           {/* Route for the Generated Content page, passing the user as a prop */}
           <Route path="/my-quiz-content" element={<MyQuizContent user={user}/>} />
+          {/* Route for creating a new session of interruptions */}
+          <Route path="/create-session" element={<CreateSession user={user}/>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>
