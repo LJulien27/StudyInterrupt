@@ -1,10 +1,15 @@
 // Importing necessary libraries and components
-import React, { useState, useRef, useEffect  } from 'react';
+
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup } from 'react-bootstrap';
+import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import User from '../../types/User';
-import axios from 'axios';
 
+
+
+// Lightweight quiz type
+type QuizLite = { _id: string; title: string; created_at?: string | null };
 
 interface CreateSessionProps {
   user: User;
@@ -17,7 +22,6 @@ interface Message {
   data?: any;
 }
 
-// Utility to make a simple fake share URL
 const generateShareLink = (contest_id: string) => {
   const origin =
     typeof window !== "undefined"
@@ -30,9 +34,8 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
   const [sessionName, setSessionName] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [participants, setParticipants] = useState(''); // Comma-separated usernames
+  const [participants, setParticipants] = useState('');
 
-  // Interrupt interval: preset or custom
   const [intervalChoice, setIntervalChoice] = useState<'15' | '30' | '45' | '60' | 'custom'>('30');
   const [customInterval, setCustomInterval] = useState<number | ''>('');
 
@@ -56,23 +59,68 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
   const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
   const [gameOver, setGameOver] = useState(false);
   const [finalScores, setFinalScores] = useState<{ username: string; score: number }[]>([]);
+  // Quiz selection states
+  const [availableQuizzes, setAvailableQuizzes] = useState<QuizLite[]>([]);
+  const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false);
 
   const showError = (msg: string) => {
     setErrorMessage(msg);
     setIsErrorModalOpen(true);
   };
 
+  const quizById = useMemo(
+    () => Object.fromEntries(availableQuizzes.map((q) => [q._id, q])),
+    [availableQuizzes]
+  );
+
+  // 🆕 Load quizzes (real or fake)
+  useEffect(() => {
+    const loadQuizzes = async () => {
+      try {
+        setLoadingQuizzes(true);
+
+        // ----- OPTION A: Real backend -----
+        // const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
+        //   `http://localhost:8000/users/${user.id}/quizzes`
+        // );
+        // setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
+
+        // ----- OPTION B: Fake quizzes for testing -----
+        // Comment this out once backend is live
+        setAvailableQuizzes([
+          { _id: 'q1', title: 'Sample Quiz 1: Math Basics' },
+          { _id: 'q2', title: 'Sample Quiz 2: Science Trivia' },
+          { _id: 'q3', title: 'Sample Quiz 3: History of Canada' },
+          { _id: 'q4', title: 'Sample Quiz 4: Programming 101' },
+        ]);
+      } catch {
+        // fallback fake quizzes
+        setAvailableQuizzes([
+          { _id: 'f1', title: 'Fallback Quiz A' },
+          { _id: 'f2', title: 'Fallback Quiz B' },
+        ]);
+      } finally {
+        setLoadingQuizzes(false);
+      }
+    };
+    loadQuizzes();
+  }, [user.id]);
+
   const effectiveIntervalMinutes =
     intervalChoice === 'custom' ? Number(customInterval) : Number(intervalChoice);
 
   const handleCreateSession = async () => {
-    // Validate required
     if (!sessionName || !startTime || !endTime) {
       showError('Please fill in all required fields.');
       return;
     }
 
-    // Validate interval
+    if (selectedQuizIds.length === 0) {
+      showError('Please select at least one quiz to include in this session.');
+      return;
+    }
+
     if (
       !effectiveIntervalMinutes ||
       Number.isNaN(effectiveIntervalMinutes) ||
@@ -82,7 +130,6 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       return;
     }
 
-    // Basic time validation
     const start = new Date(startTime).getTime();
     const end = new Date(endTime).getTime();
     if (isNaN(start) || isNaN(end) || start >= end) {
@@ -106,13 +153,14 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       interrupt_ids: [],
       public_link: isPublic ? publicLink : null,
       created_at: new Date().toISOString(),
+      quiz_ids: selectedQuizIds,
     };
     console.log(sessionObject)
 
     try {
       await axios.post('http://localhost:8000/sessions', sessionObject);
-
       alert('Session created successfully!');
+
     } catch (error: any) {
       showError(`Error: ${error?.message || 'An unknown error occurred.'}`);
     }
@@ -218,6 +266,51 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
             />
           </FloatingLabel>
 
+          {/* Quizzes Multi-Select */}
+          <Form.Group className="mb-3">
+            <Form.Label>Your Quizzes (select one or more)</Form.Label>
+            <Form.Select
+              multiple
+              aria-label="Select one or more quizzes"
+              disabled={loadingQuizzes || !availableQuizzes.length}
+              value={selectedQuizIds}
+              onChange={(e) => {
+                const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+                setSelectedQuizIds(opts);
+              }}
+              style={{ minHeight: 140 }}
+            >
+              {availableQuizzes.map((q) => (
+                <option key={q._id} value={q._id}>
+                  {q.title}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.Text className="text-muted">
+              Hold Ctrl/Cmd to select multiple quizzes.
+            </Form.Text>
+
+            {selectedQuizIds.length > 0 && (
+              <div className="mt-2 d-flex flex-wrap gap-2">
+                {selectedQuizIds.map((id) => (
+                  <span key={id} className="badge rounded-pill text-bg-secondary">
+                    {quizById[id]?.title ?? id}
+                    <Button
+                      size="sm"
+                      variant="link"
+                      className="ms-1 p-0 text-white"
+                      onClick={() =>
+                        setSelectedQuizIds((prev) => prev.filter((x) => x !== id))
+                      }
+                    >
+                      ×
+                    </Button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </Form.Group>
+
           <FloatingLabel controlId="startTime" label="Start Time" className="mb-3">
             <Form.Control
               type="datetime-local"
@@ -236,9 +329,8 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
             />
           </FloatingLabel>
 
-          {/* Interrupt Interval with presets + custom */}
           <Form.Group className="mb-3">
-            <Form.Label className="mb-1">Interrupt Interval</Form.Label>
+            <Form.Label>Interrupt Interval</Form.Label>
             <InputGroup>
               <Form.Select
                 aria-label="Interrupt interval presets"
@@ -259,20 +351,15 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
                 <Form.Control
                   type="number"
                   min={1}
-                  step={1}
                   placeholder="Custom minutes"
                   value={customInterval}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setCustomInterval(val === '' ? '' : Number(val));
-                  }}
+                  onChange={(e) =>
+                    setCustomInterval(e.target.value === '' ? '' : Number(e.target.value))
+                  }
                   required
                 />
               )}
             </InputGroup>
-            <Form.Text className="text-muted">
-              Choose a preset or enter your own number of minutes.
-            </Form.Text>
           </Form.Group>
 
           <FloatingLabel
@@ -307,11 +394,15 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
               )}
             </div>
             <small className="text-muted">
-              Public mode creates a shareable (temporary) link your friends can use to join.
+              Public mode creates a shareable link that others can use to join.
             </small>
           </div>
 
-          <Button variant="primary" onClick={handleCreateSession}>
+          <Button
+            variant="primary"
+            onClick={handleCreateSession}
+            disabled={loadingQuizzes}
+          >
             Create Session
           </Button>
         </Form>
