@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+from typing import Dict, List
 
 import crud
 from crud import *
@@ -52,10 +54,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def get_user_by_id(id: str):
     return crud.get_user_by_id(id)
 
+@app.get("/users/{username}")
+async def get_user_by_username(username: str):
+    return crud.get_user_by_id(username)
+
 # Fetch all users
 @app.get("/users/")
 async def get_users():
     return crud.get_users()
+
+@app.get("/sessions/{id}")
+async def get_session(id: str):
+    return crud.get_session_by_id(id)
 
 # Fetch all sessions for a specific user
 @app.get("/users/{id}/sessions")
@@ -112,12 +122,131 @@ async def add_user(user: User):
 # Create a new session
 @app.post("/sessions", status_code=201)
 async def add_user_session(session: Session):
-    return create_user_session(session)
+    # add a check here to see if it's a public session or not
+    session = create_user_session(session)
+    print(session)
+    if session['is_public']:
+       print(contests)
+       contest = contests[session['contest_id']]
 
-# Create a new contest
+       quizzes = []
+       for quiz_id in session['quizz_ids']:
+           quiz = get_quiz_by_id(quiz_id)
+           quiz["session_id"] = session['_id']
+           quiz = crud.update_quiz(quiz['_id'], quiz)
+           quizzes.append(quiz)
+
+       interrupts = []
+       for interrupt_id in session['interrupt_ids']:
+            interrupt = get_interrupt_by_id(interrupt_id)
+            interrupt["session_id"] = session['_id']
+            interrupt = crud.update_interrupt(interrupt['_id'], interrupt)
+            interrupts.append(interrupt)
+
+       players = [
+           {"username": u.username, "id": u.id, "score": u.score}
+           for u in contest.participants
+       ]
+
+
+       await contest.broadcast({"type": "game_start",  "payload":
+           {"session": session,
+            "quizzes": quizzes,
+            "interrupts": interrupts,
+            "players": players,
+            }})
+    return session
+
+class UserConnection:
+    def __init__(self, id: str, username: str, websocket: WebSocket):
+        self.id = id
+        self.username = username
+        self.score = 0
+        self.websocket = websocket
+
+
+
+class ActiveContest:
+    def __init__(self, contest_id: str):
+        self.contest_id = contest_id
+        self.participants: List[UserConnection] = []
+        self.hasStarted = False
+
+    async def broadcast(self, message: dict):
+        disconnected = []
+        for user in self.participants:
+            try:
+                await user.websocket.send_json(message)
+            except Exception:
+                disconnected.append(user)
+        # remove disconnected users
+        for user in disconnected:
+            self.participants.remove(user)
+
+    def get_scores_dict(self):
+        return [
+            {
+                "id": user.id,
+                "username": user.username,
+                "score": user.score
+            }
+            for user in self.participants
+        ]
+
+    async def broadcast_scores(self):
+        players = [
+            {"username": u.username, "id": u.id, "score": u.score}
+            for u in self.participants
+        ]
+        await self.broadcast({
+            "type": "score_update",
+            "players": players
+        })
+
+
+# Store all contests in memory
+contests: Dict[str, ActiveContest] = {}
 @app.post("/contests", status_code=201)
 async def add_user_contest(contest: Contest):
-    return create_contest(contest)
+    print("Received contest:", contest)
+    print("As dict:", contest.dict())  # more readable
+    created_contest = create_contest(contest)
+    print("created contest:", created_contest)
+    contests[created_contest["_id"]] = ActiveContest(created_contest["_id"])
+    #create_room(created_contest)
+    return created_contest
+
+@app.websocket("/ws/{contest_id}/{username}/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: str, user_id: str):
+    await websocket.accept()
+
+    # Retrieve the contest
+    contest = contests[contest_id]
+
+    user = UserConnection(user_id, username=username, websocket=websocket)
+
+    if contest.hasStarted:
+        await websocket.send_json({"type": "can_not_join",  "text": "session has already started"})
+        await websocket.close(code=4001)
+        return
+
+    contest.participants.append(user)
+    await contest.broadcast({"type": "user_joined", "payload": {"players": contest.participants}})
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # --- Player answered ---
+            if data["type"] == "score":
+                user.score += 1
+                await contest.broadcast_scores()
+
+    except WebSocketDisconnect:
+        contest.participants.remove(user)
+        await contest.broadcast({"type": "user_left", "username": username})
+        if len(contest.participants) == 0:
+           del contests[contest_id]
+           await contest.broadcast({"type": "game_over"})
 
 # Create a new quiz
 @app.post("/quizzes", status_code=201)
@@ -242,6 +371,10 @@ async def delete_question_route(question_id: str):
 @app.delete("/interrupts/{interrupt_id}", status_code=200)
 async def delete_interrupt_route(interrupt_id: str):
     return delete_interrupt(interrupt_id)
+
+#at line 118 we create the contest
+#line 383 in crud
+
 
 # Run the application using Uvicorn
 if __name__ == "__main__":

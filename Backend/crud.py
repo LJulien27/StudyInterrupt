@@ -37,6 +37,14 @@ def get_user_by_id(user_id):
     else:
         raise HTTPException(status_code=404, detail="User not found")
 
+def get_user_by_username(username):
+    # Fetch user by ID
+    user = users_collection.find_one({"username": username})
+    if user:
+        user["_id"] = str(user["_id"])  # Convert ObjectId to string
+        return user
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
 
 def get_users_sessions(user_id):
     try:
@@ -126,6 +134,24 @@ def get_users_quizzes(user_id):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+def get_session_by_id (session_id):
+    try:
+        # Validate session ID
+        try:
+            obj_id = ObjectId(session_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
+
+        # Fetch user by ID
+        session = sessions_collection.find_one({"_id": obj_id})
+        if session:
+            session["_id"] = str(session["_id"])  # Convert ObjectId to string
+            return session
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 def get_sessions_contest(session_id):
     try:
@@ -214,6 +240,21 @@ def get_quizzes_questions(quiz_id):
     except PyMongoError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+def get_question_by_id(question_id):
+    # Validate and convert user ID
+    try:
+        obj_id = ObjectId(question_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid question user ID format")
+
+    # Fetch user by ID
+    question = questions_collection.find_one({"_id": obj_id})
+    if question:
+        question["_id"] = str(question["_id"])  # Convert ObjectId to string
+        return question
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
+
 
 def get_quiz_by_id(quiz_id):
     # Fetch quiz by ID
@@ -228,6 +269,19 @@ def get_quiz_by_id(quiz_id):
         return quizz
     else:
         raise HTTPException(status_code=404, detail="Quiz not found")
+
+def get_interrupt_by_id(interrupt_id):
+    try:
+        obj_id = ObjectId(interrupt_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    interrupt = interrupts_collection.find_one({"_id": obj_id})
+    if interrupt:
+        interrupt["_id"] = str(interrupt["_id"])
+        return interrupt
+    else:
+        raise HTTPException(status_code=404, detail="Interrupt not found")
 
 
 
@@ -283,9 +337,6 @@ def create_user_session(session: Session):
 def create_contest(contest: Contest):
     try:
         # Ensure the session ID is valid and exists in the database
-        if not sessions_collection.find_one({"_id": ObjectId(contest.session_id)}):
-            raise HTTPException(status_code=404, detail="Session not found")
-
         # Convert Pydantic model to dictionary format
         contest_dict = contest.model_dump()
 
@@ -596,10 +647,13 @@ def add_quiz_to_session(session_id: str, quiz_id: str):
             raise HTTPException(status_code=404, detail="Session not found")
 
         # Assign the quiz to the session
-        sessions_collection.update_one(
+        result = sessions_collection.update_one(
             {"_id": ObjectId(session_id)},
-            {"$set": {"quiz_id": quiz_id}}
+            {"$addToSet": {"quiz_ids": quiz_id}}  # ensures no duplicates
         )
+
+        if result.modified_count == 0:
+            return {"message": "Quiz was already in session or session not modified"}
 
         return {"message": "Quiz added to session successfully"}
 

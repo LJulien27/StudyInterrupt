@@ -54,7 +54,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
   const handleSubmitQuiz = async () => {
     const quizObject = {
       title: quizName, // Quiz title
-      creator_id: user.id, // User ID of the quiz creator
+      creator_id: "67d4aafda97b4f67f45759bf", // User ID of the quiz creator
       session_id: null, // Placeholder for session ID
       created_at: new Date(), // Current timestamp
     };

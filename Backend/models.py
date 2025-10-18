@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field
 from typing import List
 from datetime import datetime
 
+from fastapi import WebSocket
+
+
 # API body models - defines the structure of data for requests
 
 # Model for a User object
@@ -23,7 +26,7 @@ class Username(BaseModel):
 class Contest(BaseModel):
     grades: List[int] | None = None           # List of grades, optional
     participants: List[Username]              # List of users participating
-    session_id: str                           # Associated session ID
+    session_id: str | None = None                         # Associated session ID
 
 # Model for a Question object
 class Question(BaseModel):
@@ -47,6 +50,7 @@ class Interrupt(BaseModel):
     interrupt_time: str                       # Time of the interrupt
     creator_id: str                           # ID of the creator
     session_id: str | None = None             # Associated session ID, optional
+    quiz_id: str | None = None
 
 # Model for a Session object
 class Session(BaseModel):
@@ -54,4 +58,8 @@ class Session(BaseModel):
     end_time: datetime                        # End time of the session
     creator_id: str                           # ID of the creator
     participants: List[Username]              # List of participants
-    quiz_id: str | None = None                # Associated quiz ID, optional
+    quizz_ids: List[str] | None = None
+    interrupt_ids: List[str] | None = None
+    contest_id: str | None = None
+    duration: int
+    is_public: bool
