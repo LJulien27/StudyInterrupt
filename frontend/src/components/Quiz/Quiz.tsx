@@ -70,7 +70,7 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      const response = await axios.get(`http://localhost:8000/users/67d4aafda97b4f67f45759bf/quizzes`);//replace with route user id
+      const response = await axios.get(`http://localhost:8000/users/${user.id}/quizzes`);//replace with route user id
       setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
       
     };

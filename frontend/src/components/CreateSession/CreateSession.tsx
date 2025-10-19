@@ -80,20 +80,20 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       try {
         setLoadingQuizzes(true);
 
-        // ----- OPTION A: Real backend -----
-        // const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
-        //   `http://localhost:8000/users/${user.id}/quizzes`
-        // );
-        // setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
+        //----- OPTION A: Real backend -----
+        const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
+          `http://localhost:8000/users/${user.id}/quizzes`
+        );
+        setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
 
-        // ----- OPTION B: Fake quizzes for testing -----
-        // Comment this out once backend is live
-        setAvailableQuizzes([
-          { _id: 'q1', title: 'Sample Quiz 1: Math Basics' },
-          { _id: 'q2', title: 'Sample Quiz 2: Science Trivia' },
-          { _id: 'q3', title: 'Sample Quiz 3: History of Canada' },
-          { _id: 'q4', title: 'Sample Quiz 4: Programming 101' },
-        ]);
+        // // ----- OPTION B: Fake quizzes for testing -----
+        // // Comment this out once backend is live
+        // setAvailableQuizzes([
+        //   { _id: 'q1', title: 'Sample Quiz 1: Math Basics' },
+        //   { _id: 'q2', title: 'Sample Quiz 2: Science Trivia' },
+        //   { _id: 'q3', title: 'Sample Quiz 3: History of Canada' },
+        //   { _id: 'q4', title: 'Sample Quiz 4: Programming 101' },
+        // ]);
       } catch {
         // fallback fake quizzes
         setAvailableQuizzes([
@@ -146,14 +146,13 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       participants: participants
         ? participants.split(',').map((p) => p.trim()).filter(Boolean)
         : [],
-      creator_id: "67d4aafda97b4f67f45759bf",
+      creator_id: user.id,
       contest_id: contestId ? contestId : null,
       is_public: isPublic,
-      quizz_ids: [],
+      quizz_ids: selectedQuizIds,
       interrupt_ids: [],
       public_link: isPublic ? publicLink : null,
       created_at: new Date().toISOString(),
-      quiz_ids: selectedQuizIds,
     };
     console.log(sessionObject)
 
@@ -171,7 +170,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
     console.log(user.id)
     if (!isPublic) {
       const userNameObject = {
-      id: '67d4aafda97b4f67f45759bf',
+      id: user.id,
       username: user.username,
 
 
@@ -186,12 +185,14 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
     let contest = await axios.post('http://localhost:8000/contests', contestObject);
     setContestId(contest.data._id)
     console.log(contestId)
-    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/67d4aafda97b4f67f45759bf`);
+    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${user.id}`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("Connected!");
     ws.onmessage = (e: MessageEvent) => {
       const msg = JSON.parse(e.data);
+      console.log("received message")
+      console.log(msg)
        switch (msg.type) {
         case "start_game":
           console.log("Game started!");
@@ -200,6 +201,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
           setQuizzes(msg.payload.quizzes);
           setInterrupts(msg.payload.interrupts);
           setPlayers(msg.payload.players)
+          console.log(msg)
           break;
 
         case "score_update":
@@ -237,6 +239,10 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
     } else {
       setIsPublic(false);
       setPublicLink(null);
+      if (wsRef.current) {
+        wsRef.current.close();   // 👈 closes the WebSocket connection
+        wsRef.current = null;    // optional, clears the ref
+      }
     }
   };
 
