@@ -1,9 +1,13 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import os
+import asyncio
+from typing import Dict, List
+from fastapi.encoders import jsonable_encoder
 
 import crud
 from crud import *
@@ -52,10 +56,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def get_user_by_id(id: str):
     return crud.get_user_by_id(id)
 
+@app.get("/users/{username}")
+async def get_user_by_username(username: str):
+    return crud.get_user_by_id(username)
+
 # Fetch all users
 @app.get("/users/")
 async def get_users():
     return crud.get_users()
+
+@app.get("/sessions/{id}")
+async def get_session(id: str):
+    return crud.get_session_by_id(id)
 
 # Fetch all sessions for a specific user
 @app.get("/users/{id}/sessions")
@@ -107,17 +119,190 @@ async def get_quizzes_questions(id: str):
 async def add_user(user: User):
     return crud.create_user(user)
 
+class UserConnection:
+    def __init__(self, id: str, username: str, websocket: WebSocket):
+        self.id = id
+        self.username = username
+        self.score = 0
+        self.websocket = websocket
+
+
+
+class ActiveContest:
+    def __init__(self, contest_id: str):
+        self.contest_id = contest_id
+        self.participants: List[UserConnection] = []
+        self.hasStarted = False
+
+    async def broadcast(self, message: dict):
+        disconnected = []
+        for user in self.participants:
+            #try:
+            await user.websocket.send_json(message)
+            #except Exception:
+                #disconnected.append(user)
+        # remove disconnected users
+        for user in disconnected:
+            self.participants.remove(user)
+
+    def get_scores_dict(self):
+        return [
+            {
+                "id": user.id,
+                "username": user.username,
+                "score": user.score
+            }
+            for user in self.participants
+        ]
+
+    async def broadcast_scores(self):
+        players = [
+            {"username": u.username, "id": u.id, "score": u.score}
+            for u in self.participants
+        ]
+        await self.broadcast({
+            "type": "score_update",
+            "players": players
+        })
+
 # POST methods for creating new resources
+contests: Dict[str, ActiveContest] = {}
 
 # Create a new session
 @app.post("/sessions", status_code=201)
 async def add_user_session(session: Session):
-    return create_user_session(session)
+    # add a check here to see if it's a public session or not
+    session = create_user_session(session)
+    print(session)
+    if session['is_public']:
+       print("In Sessions")
+       print("Handler PID:", os.getpid())
+       for cid, c in contests.items():
+           print(f"\n🏁 Contest ID: {cid}")
+           print(f"Has started: {c.hasStarted}")
+           print("Participants:")
+           for p in c.participants:
+               print(f" - {p.username} (id={p.id}, score={p.score})")
+       contest = contests[session['contest_id']]
 
-# Create a new contest
+       quizzes = []
+       for quiz_id in session['quizz_ids']:
+           quiz = await get_quiz_by_id(quiz_id)
+           quiz["session_id"] = session['_id']
+           quiz_obj = Quizz(**quiz)  # ✅ convert dict into a Pydantic model
+           crud.update_quiz(quiz['_id'], quiz_obj)
+           quiz_final = crud.get_quiz_by_id(quiz['_id'])
+           quizzes.append(quiz_final )
+
+       interrupts = []
+       for interrupt_id in session['interrupt_ids']:
+           interrupt = await get_interrupt_by_id(interrupt_id)
+           interrupt["session_id"] = session['_id']
+           interrupt_obj = Interrupt(**interrupt)  # ✅ convert dict to model
+           crud.update_interrupt(interrupt_obj.id, interrupt_obj)
+           interrupt_final = crud.get_interrupt_by_id(interrupt_obj.id)
+           interrupts.append(interrupt_final)
+
+       players = [
+           {"username": u.username, "id": u.id, "score": u.score}
+           for u in contest.participants
+       ]
+
+       print("Session contest participants:")
+       for p in contest.participants:
+           print(f" - {p.username} (id={p.id}, score={p.score})")
+
+           # 1. Create the full payload object first
+           payload = {
+               "session": session,
+               "quizzes": quizzes,
+               "interrupts": interrupts,
+               "players": players,
+           }
+
+           # 2. Use jsonable_encoder to make it serializable
+           serializable_payload = jsonable_encoder(payload)
+
+           # 3. Broadcast the serializable version
+           await contest.broadcast({
+               "type": "game_start",
+               "payload": serializable_payload  # <-- Use the encoded payload
+           })
+    return session
+
+
 @app.post("/contests", status_code=201)
 async def add_user_contest(contest: Contest):
-    return create_contest(contest)
+    print("Received contest:", contest)
+    print("As dict:", contest.dict())  # more readable
+    created_contest = create_contest(contest)
+    print("created contest:", created_contest)
+    contests[created_contest["_id"]] = ActiveContest(created_contest["_id"])
+    #create_room(created_contest)
+    return created_contest
+
+@app.websocket("/ws/{contest_id}/{username}/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: str, user_id: str):
+    await websocket.accept()
+
+    # Retrieve the contest
+    contest = contests[contest_id]
+    print("in websocket")
+    print("Handler PID:", os.getpid())
+    user = UserConnection(user_id, username=username, websocket=websocket)
+
+    if contest.hasStarted:
+        await websocket.send_json({"type": "can_not_join",  "text": "session has already started"})
+        await websocket.close(code=4001)
+        return
+
+    contest.participants.append(user)
+
+    for cid, c in contests.items():
+        print(f"\n🏁 Contest ID: {cid}")
+        print(f"Has started: {c.hasStarted}")
+        print("Participants:")
+        for p in c.participants:
+            print(f" - {p.username} (id={p.id}, score={p.score})")
+
+    # NEW (Fixed)
+    players = [
+        {"username": u.username, "id": u.id, "score": u.score}
+        for u in contest.participants
+    ]
+    await contest.broadcast({"type": "user_joined", "payload": {"players": players}})
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # --- Player answered ---
+            if data["type"] == "score":
+                user.score += 1
+                await contest.broadcast_scores()
+
+
+    except WebSocketDisconnect:
+
+        try:
+            print("in disconnect")
+            contest.participants.remove(user)
+
+            await contest.broadcast({"type": "user_left", "username": username})
+
+            print(f"User {username} disconnected from contest {contest_id}")
+
+        except ValueError:
+
+            print(f"⚠️ Tried to remove user {username} not in participants list of {contest_id}")
+
+        # If no one is left, clean up the contest
+
+        if len(contest.participants) == 0:
+            await contest.broadcast({"type": "game_over"})
+
+            del contests[contest_id]
+
+            print(f"Contest {contest_id} deleted (no participants left)")
 
 # Create a new quiz
 @app.post("/quizzes", status_code=201)
@@ -242,6 +427,10 @@ async def delete_question_route(question_id: str):
 @app.delete("/interrupts/{interrupt_id}", status_code=200)
 async def delete_interrupt_route(interrupt_id: str):
     return delete_interrupt(interrupt_id)
+
+#at line 118 we create the contest
+#line 383 in crud
+
 
 # Run the application using Uvicorn
 if __name__ == "__main__":

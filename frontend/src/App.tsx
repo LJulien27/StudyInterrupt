@@ -12,11 +12,13 @@ import NotFound from './components/NotFound/NotFound';
 import CreateSession from './components/CreateSession/CreateSession';
 import User from './types/User';
 import axios from 'axios';
+import JoinSession from './components/JoinSession/JoinSession';
 
 const App: React.FC = () => {
   // State to store the current user
   const [user, setUser] = useState<User>({
-    id: '67e1c77552f341264138101b' // Default user ID
+    id: '67d4aafda97b4f67f45759bf', // Default user ID
+    username: 'Andre'
   });
 
   // Fetch user data from the backend API on component mount
@@ -70,6 +72,8 @@ const App: React.FC = () => {
           <Route path="/my-quiz-content" element={<MyQuizContent user={user}/>} />
           {/* Route for creating a new session of interruptions */}
           <Route path="/create-session" element={<CreateSession user={user}/>} />
+          {/* Route for joining someone else's session */}
+          <Route path="/join-session" element={<JoinSession user={user}/>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>

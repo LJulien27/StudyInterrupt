@@ -1,9 +1,12 @@
 // Importing necessary libraries and components
-import React, { useEffect, useMemo, useState } from 'react';
+
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup } from 'react-bootstrap';
 import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import User from '../../types/User';
+
+
 
 // Lightweight quiz type
 type QuizLite = { _id: string; title: string; created_at?: string | null };
@@ -12,11 +15,19 @@ interface CreateSessionProps {
   user: User;
 }
 
-// Generates a fake public link
-const generateFakeShareLink = () => {
-  const slug = Math.random().toString(36).slice(2, 10);
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://example.com';
-  return `${origin}/sessions/${slug}`;
+interface Message {
+  type: string;
+  username?: string;
+  from?: string;
+  data?: any;
+}
+
+const generateShareLink = (contest_id: string) => {
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://example.com";
+  return `${origin}/join-session/${contest_id}`;
 };
 
 const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
@@ -34,6 +45,20 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const [username, setUsername] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [contestId, setContestId] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const [session, setSession] = useState("");
+  const [quizzes, setQuizzes] = useState("");
+  const [interrupts, setInterrupts] = useState("");
+
+  const [scores, setScores] = useState<{ username: string; score: number }[]>([]);
+  const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+  const [finalScores, setFinalScores] = useState<{ username: string; score: number }[]>([]);
   // Quiz selection states
   const [availableQuizzes, setAvailableQuizzes] = useState<QuizLite[]>([]);
   const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
@@ -55,20 +80,20 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       try {
         setLoadingQuizzes(true);
 
-        // ----- OPTION A: Real backend -----
-        // const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
-        //   `http://localhost:8000/users/${user.id}/quizzes`
-        // );
-        // setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
+        //----- OPTION A: Real backend -----
+        const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
+          `http://localhost:8000/users/${user.id}/quizzes`
+        );
+        setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
 
-        // ----- OPTION B: Fake quizzes for testing -----
-        // Comment this out once backend is live
-        setAvailableQuizzes([
-          { _id: 'q1', title: 'Sample Quiz 1: Math Basics' },
-          { _id: 'q2', title: 'Sample Quiz 2: Science Trivia' },
-          { _id: 'q3', title: 'Sample Quiz 3: History of Canada' },
-          { _id: 'q4', title: 'Sample Quiz 4: Programming 101' },
-        ]);
+        // // ----- OPTION B: Fake quizzes for testing -----
+        // // Comment this out once backend is live
+        // setAvailableQuizzes([
+        //   { _id: 'q1', title: 'Sample Quiz 1: Math Basics' },
+        //   { _id: 'q2', title: 'Sample Quiz 2: Science Trivia' },
+        //   { _id: 'q3', title: 'Sample Quiz 3: History of Canada' },
+        //   { _id: 'q4', title: 'Sample Quiz 4: Programming 101' },
+        // ]);
       } catch {
         // fallback fake quizzes
         setAvailableQuizzes([
@@ -116,33 +141,108 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       name: sessionName,
       start_time: startTime,
       end_time: endTime,
+      duration: 30,
       interrupt_interval_minutes: effectiveIntervalMinutes,
       participants: participants
         ? participants.split(',').map((p) => p.trim()).filter(Boolean)
         : [],
       creator_id: user.id,
+      contest_id: contestId ? contestId : null,
       is_public: isPublic,
+      quizz_ids: selectedQuizIds,
+      interrupt_ids: [],
       public_link: isPublic ? publicLink : null,
       created_at: new Date().toISOString(),
-      quiz_ids: selectedQuizIds,
     };
+    console.log(sessionObject)
 
     try {
-      // const { data } = await axios.post('http://localhost:8000/sessions/', sessionObject);
-      console.log('Session payload:', sessionObject);
-      alert('Session created successfully! (check console for payload)');
+      await axios.post('http://localhost:8000/sessions', sessionObject);
+      alert('Session created successfully!');
+
     } catch (error: any) {
       showError(`Error: ${error?.message || 'An unknown error occurred.'}`);
     }
   };
 
-  const handleMakePublic = () => {
+  // Connect to an existing contest via WebSocket
+  const handleMakePublic = async() => {
+    console.log(user.id)
     if (!isPublic) {
+      const userNameObject = {
+      id: user.id,
+      username: user.username,
+
+
+    };
+
+    const contestObject = {
+      participants: [userNameObject]
+    };
+
+    console.log(contestObject)
+      
+    let contest = await axios.post('http://localhost:8000/contests', contestObject);
+    setContestId(contest.data._id)
+    console.log(contestId)
+    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${user.id}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => console.log("Connected!");
+    ws.onmessage = (e: MessageEvent) => {
+      const msg = JSON.parse(e.data);
+      console.log("received message")
+      console.log(msg)
+       switch (msg.type) {
+        case "start_game":
+          console.log("Game started!");
+          // msg.payload contains session, quizzes, interrupts
+          setSession(msg.payload.session);
+          setQuizzes(msg.payload.quizzes);
+          setInterrupts(msg.payload.interrupts);
+          setPlayers(msg.payload.players)
+          console.log(msg)
+          break;
+
+        case "score_update":
+          console.log("Score update received!");
+          setPlayers(msg.payload.players); // { username: score, ... }
+          break;
+
+        case "player_disconnected":
+          console.log(`${msg.payload.username} disconnected`);
+          setPlayers((prev) =>
+            prev.filter((p) => p.username !== msg.payload.username)
+          );
+          break;
+
+        case "game_over":
+          console.log("Game over!");
+          setGameOver(true);
+          setFinalScores(scores);
+          break;
+        
+        case "user_joined":
+          console.log("user joined");
+          setPlayers(msg.payload.players);
+          break;
+
+        default:
+          console.warn("Unknown message type:", msg.type);
+      }
+    };
+    ws.onclose = () => console.log("Disconnected");
+
+
       setIsPublic(true);
-      setPublicLink((prev) => prev ?? generateFakeShareLink());
+      setPublicLink((prev) => prev ?? generateShareLink(contestId));
     } else {
       setIsPublic(false);
       setPublicLink(null);
+      if (wsRef.current) {
+        wsRef.current.close();   // 👈 closes the WebSocket connection
+        wsRef.current = null;    // optional, clears the ref
+      }
     }
   };
 

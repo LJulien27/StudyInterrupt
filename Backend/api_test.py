@@ -402,7 +402,9 @@ def test_create_user_session_success(mock_db):
         "end_time": datetime.now().isoformat(),
         "creator_id": VALID_USER_ID,
         "participants": [{"id": VALID_USER_ID, "username": "Andre"}],
-        "quiz_id": None
+        "quizz_ids": None,
+        "duration": 0,
+        "is_public": False,
     }
 
     # Send POST request
@@ -550,7 +552,9 @@ def test_update_session_success(mock_db):
         "creator_id": VALID_USER_ID,
         "interrupts": [],
         "participants": [{"id": VALID_USER_ID, "username": "testuser"}],
-        "quiz_id": None
+        "quizz_ids":None ,
+        "duration": 0,
+        "is_public": False,
     }
 
     # Make PUT request to update the session
