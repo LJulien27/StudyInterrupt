@@ -10,14 +10,14 @@
         "scopes": ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/contacts.readonly"]
     },
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "public/background.js"
     },
     "action": {
-        "default_popup": "popup.html"
+        "default_popup": "public/popup.html"
     },
     "web_accessible_resources": [
         {
-            "resources": ["index.html", "static/js/*.js", "static/css/*.css"],
+            "resources": ["public/index.html", "static/js/*.js", "static/css/*.css"],
             "matches": ["<all_urls>"]
         }
     ]

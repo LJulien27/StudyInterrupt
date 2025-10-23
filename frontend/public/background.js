@@ -1,3 +1,4 @@
+// Fetches the user's API key
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "fetchData") {
         fetch("https://api.example.com/data", {
