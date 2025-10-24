@@ -12,6 +12,7 @@ class User(BaseModel):
     username: str
     email: str
     password: str
+    google_id: str
     created_at: datetime
     default_session_length: int | None = 180  # Default session length in minutes
     default_min_range: int | None = 30        # Minimum range for intervals
