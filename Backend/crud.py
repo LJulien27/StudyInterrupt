@@ -21,6 +21,14 @@ def get_users():
     else:
         raise HTTPException(status_code=404, detail="No users found")
 
+def check_if_user_with_google_id(google_id):
+    # Fetch user by ID
+    user = users_collection.find_one({"google_id": google_id})
+    if user:
+        return True
+    else:
+        raise HTTPException(status_code=404, detail="User with that google id not found")
+
 
 def get_user_by_id(user_id):
     # Validate and convert user ID
@@ -931,8 +939,5 @@ def delete_interrupt(interrupt_id: str):
     except PyMongoError as e:
         # Handle database errors
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-
 
 
