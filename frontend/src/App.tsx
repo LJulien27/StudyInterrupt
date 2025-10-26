@@ -24,7 +24,7 @@ const App: React.FC = () => {
   // Fetch user data from the backend API on component mount
   useEffect(() => {
     axios
-      .get('http://localhost:8000/users/') // API endpoint to fetch users
+      .get('https://studyinterruptbackend.onrender.com/users/') // API endpoint to fetch users
       .then(response => {
         // Set the user to the first user in the response or a default user if the response is invalid
         setUser(Array.isArray(response.data.users) ? response.data.users[0] : {id: '67e1c77552f341264138101b'});

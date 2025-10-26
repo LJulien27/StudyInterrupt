@@ -28,7 +28,7 @@ const History: React.FC<HistoryProps> = ({ user }) => {
     const fetchData = async () => {
       try {
         // Fetching session data from the backend
-        const sessionResponse = await axios.get('http://localhost:8000/users/67d4aafda97b4f67f45759bf/sessions');
+        const sessionResponse = await axios.get('https://studyinterruptbackend.onrender.com/users/67d4aafda97b4f67f45759bf/sessions');
         console.log("Sessions response:", sessionResponse.data);
         // Updating the sessions state with the fetched data
         setSessions(Array.isArray(sessionResponse.data.sessions) ? sessionResponse.data.sessions : []);
@@ -41,7 +41,7 @@ const History: React.FC<HistoryProps> = ({ user }) => {
 
       try {
         // Fetching contest data from the backend
-        const contestResponse = await axios.get('http://localhost:8000/users/67d4aafda97b4f67f45759bf/contests');
+        const contestResponse = await axios.get('https://studyinterruptbackend.onrender.com/users/67d4aafda97b4f67f45759bf/contests');
         console.log("Contests response:", contestResponse.data);
         // Updating the contests state with the fetched data
         setContests(Array.isArray(contestResponse.data.contests) ? contestResponse.data.contests : []);

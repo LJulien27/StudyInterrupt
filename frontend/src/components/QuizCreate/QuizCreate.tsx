@@ -61,7 +61,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
 
     try {
       // Submit the quiz to the backend
-      const QuizResponse = await axios.post('http://localhost:8000/quizzes/', quizObject);
+      const QuizResponse = await axios.post('https://studyinterruptbackend.onrender.com/quizzes/', quizObject);
       console.log(QuizResponse.data);
       const quizId = QuizResponse.data._id;
 
@@ -77,7 +77,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
           answer: question.answer, // Correct answer(s)
         };
         console.log(questionObject); // Debugging purposes
-        let response = await axios.post('http://localhost:8000/questions/', questionObject);
+        let response = await axios.post('https://studyinterruptbackend.onrender.com/questions/', questionObject);
         console.log(response.data);
       }
 

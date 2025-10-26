@@ -70,7 +70,7 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      const response = await axios.get(`http://localhost:8000/users/${user.id}/quizzes`);//replace with route user id
+      const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${user.id}/quizzes`);//replace with route user id
       setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
       
     };
@@ -80,7 +80,7 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
 
   const handleQuizSelect = async (quiz: Quiz) => {
     try {
-      const response = await axios.get(`http://localhost:8000/quizzes/${quiz._id}/questions`); // Fetch full quiz details
+      const response = await axios.get(`https://studyinterruptbackend.onrender.com/quizzes/${quiz._id}/questions`); // Fetch full quiz details
       setQuestions(Array.isArray(response.data.questions) ? response.data.questions : []); // Update state with fetched quiz
       setSelectedQuiz(quiz)
     } catch (error) {
@@ -132,7 +132,7 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
     //update contest grade
 
     /*
-    const contest_response = await axios.get(`http://localhost:8000/sessions/67d4ab26a97b4f67f45759c0/contests`);
+    const contest_response = await axios.get(`https://studyinterruptbackend.onrender.com/sessions/67d4ab26a97b4f67f45759c0/contests`);
     setContest(contest_response.data.contest)
     console.log(contest)
     
@@ -153,7 +153,7 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
       
         
         console.log(contestToSend)
-        const update_contest = await axios.put(`http://localhost:8000/contests/${contest._id}`, contestToSend);
+        const update_contest = await axios.put(`https://studyinterruptbackend.onrender.com/contests/${contest._id}`, contestToSend);
     }
     */
 
