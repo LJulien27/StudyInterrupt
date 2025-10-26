@@ -82,7 +82,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
 
         //----- OPTION A: Real backend -----
         const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
-          `http://localhost:8000/users/${user.id}/quizzes`
+          `https://studyinterruptbackend.onrender.com/users/${user.id}/quizzes`
         );
         setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
 
@@ -157,7 +157,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
     console.log(sessionObject)
 
     try {
-      await axios.post('http://localhost:8000/sessions', sessionObject);
+      await axios.post('https://studyinterruptbackend.onrender.com/sessions', sessionObject);
       alert('Session created successfully!');
 
     } catch (error: any) {
@@ -182,7 +182,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
 
     console.log(contestObject)
       
-    let contest = await axios.post('http://localhost:8000/contests', contestObject);
+    let contest = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
     setContestId(contest.data._id)
     console.log(contestId)
     const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${user.id}`);
