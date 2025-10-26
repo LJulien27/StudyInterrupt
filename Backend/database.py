@@ -1,9 +1,15 @@
 # This is the model for the database
 from pymongo import MongoClient
+from pymongo.server_api import ServerApi
+import os
 
 # Connect to the local MongoDB server
-client = MongoClient("mongodb://localhost:27017/")
+uri = os.getenv("MONGODB_URI", "mongodb+srv://andrelepage15_db_user:sU7MjWBJXbxRskXs@cluster0.snysw4m.mongodb.net/?appName=Cluster0")
+
+# Create a new client and connect to the server
+client = MongoClient(uri, server_api=ServerApi('1'))
 db = client["study_interrupt"]  # Access the "study_interrupt" database
+
 
 # Define collections for different entities
 users_collection = db["users"]
