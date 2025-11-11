@@ -2,15 +2,44 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const status = document.getElementById("status");
 
-  chrome.identity.getAuthToken({ interactive: false }, async function(token) {
-    if (token) {
-      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: 'Bearer ' + token }
+  async function fetchUserInfo(token) {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    return res.json();
+  }
+
+  // Try to get cached token first
+  chrome.identity.getAuthToken({ interactive: false }, (token) => {
+    if (chrome.runtime.lastError || !token) {
+      console.log("No cached token, prompting user interactively...");
+
+      // Fallback to interactive login
+      chrome.identity.getAuthToken({ interactive: true }, async (newToken) => {
+        if (chrome.runtime.lastError || !newToken) {
+          console.error("Login failed:", chrome.runtime.lastError);
+          status.textContent = "Not signed in";
+          return;
+        }
+        try {
+          const user = await fetchUserInfo(newToken);
+          status.textContent = `Signed in as ${user.name}`;
+        } catch (err) {
+          console.error("Error fetching user info:", err);
+          status.textContent = "Error fetching profile";
+        }
       });
-      const user = await res.json();
-      status.textContent = `Signed in as ${user.name}`;
     } else {
-      status.textContent = "Not signed in";
+      // Cached token exists
+      (async () => {
+        try {
+          const user = await fetchUserInfo(token);
+          status.textContent = `Signed in as ${user.name}`;
+        } catch (err) {
+          console.error("Error fetching user info:", err);
+          status.textContent = "Error fetching profile";
+        }
+      })();
     }
   });
 });
@@ -25,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (openWebAppButton) { 
         // create web page
         openWebAppButton.addEventListener("click", () => {
-            chrome.tabs.create({ url: chrome.runtime.getURL("public/index.html") });
+            chrome.tabs.create({ url: chrome.runtime.getURL("build/index.html") });
         });
     } else {
         console.error("Button #openWebApp not found!");

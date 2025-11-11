@@ -17,7 +17,7 @@
     },
     "web_accessible_resources": [
         {
-            "resources": ["public/index.html", "static/js/*.js", "static/css/*.css"],
+            "resources": ["build/index.html", "build/static/js/*.js", "build/static/css/*.css"],
             "matches": ["<all_urls>"]
         }
     ]
