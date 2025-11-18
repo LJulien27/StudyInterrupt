@@ -1,3 +1,4 @@
+import axios from 'axios';
 
 export async function initOAuth() {
   /*const contactsDiv = document.getElementById('contactsDiv');
@@ -19,6 +20,13 @@ export async function initOAuth() {
     });
   }
 
+  async function fetchUserInfo(token : string): Promise<any> {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    return res.json();
+  }
+
   async function fetchUserProfile(token : string): Promise<any> {
     const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + token }
@@ -30,7 +38,7 @@ export async function initOAuth() {
     try {
       // Try to get a cached token in the background
       const token = await authenticate(false);
-      const profile = await fetchUserProfile(token);
+      //const profile = await fetchUserProfile(token);
       //contactsDiv!.innerHTML = `<p>Welcome, ${profile.name} (${profile.email})</p>`;
     } catch (e) {
       // If no cached token, make user sign in interactively
@@ -38,6 +46,28 @@ export async function initOAuth() {
       console.log("No cached token found — opening login popup...");
       try {
         const token = await authenticate(true);
+        const user = await fetchUserInfo(token);
+        const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub).then(r => r.json())
+          if (res.status == '404') {
+            console.log("Creating user: ", user.sub);
+            const now = new Date();
+            let userObject = {
+              username: user.name,
+              email: user.email,
+              googleid: user.sub,
+              createdat: now,
+            };
+            console.log(userObject); // Debugging
+            let response = await fetch('https://studyinterruptbackend.onrender.com/users/',
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(userObject)
+              }
+            );
+            const data = await response.json();
+            console.log(data);
+          }
         const profile = await fetchUserProfile(token);
         //contactsDiv!.innerHTML = `<p>Welcome, ${profile.name} (${profile.email})</p>`;
       } catch (err: any) {
