@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Configure CORS
 origins = [
-    "http://localhost:3000",  # React development server
+    "http://localhost:3000",
+    "chrome-extension://pgnklflkklbaboaffcbnaiknpoglbnci"# React development server
     # Add other origins as needed
 ]
 
