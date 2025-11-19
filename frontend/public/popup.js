@@ -44,6 +44,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             );
             const data = await response.json();
             console.log(data);
+            localStorage.setItem("user", JSON.stringify(data));
+            // Notify AuthContext that user was updated
+            window.dispatchEvent(new Event("userUpdated"));
+          } else if (res.ok) {
+            // User exists, get the user data and save to localStorage
+            const userData = await res.json();
+            console.log("User already exists:", userData);
+            localStorage.setItem("user", JSON.stringify(userData));
+            // Notify AuthContext that user was updated
+            window.dispatchEvent(new Event("userUpdated"));
           } else if (!res.ok) {
             // Other errors (500, CORS, etc.)
             throw new Error(`Server error: ${res.status}`);
@@ -59,6 +69,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const user = await fetchUserInfo(token);
           status.textContent = `Signed in as ${user.name}`;
+          // Check if user exists in backend and save to localStorage
+          const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub);
+          if (res.status === 404) {
+            // User doesn't exist, create new user
+            console.log("Creating user: ", user.sub);
+            const now = new Date().toISOString();
+            let userObject = {
+              username: user.name,
+              email: user.email,
+              google_id: user.sub,
+              created_at: now,
+            };
+            let response = await fetch('https://studyinterruptbackend.onrender.com/users',
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(userObject)
+              }
+            );
+            const data = await response.json();
+            localStorage.setItem("user", JSON.stringify(data));
+            window.dispatchEvent(new Event("userUpdated"));
+          } else if (res.ok) {
+            // User exists, get the user data and save to localStorage
+            const userData = await res.json();
+            localStorage.setItem("user", JSON.stringify(userData));
+            window.dispatchEvent(new Event("userUpdated"));
+          }
         } catch (err) {
           console.error("Error fetching user info:", err);
           status.textContent = "Error fetching profile";
@@ -99,10 +137,11 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
 
         // Remove token from Chrome cache
         chrome.identity.removeCachedAuthToken({ token }, () => {
-          console.log("Token removed from Chrome.");
-
-          // Clear from your backend
-          // fetch('https://your-backend.com/logout', { method: 'POST' });
+          if (chrome.runtime.lastError) {
+            console.warn("Token was not cached or already removed:", chrome.runtime.lastError);
+          } else {
+            console.log("Token removed from Chrome.");
+          }
 
           // Update UI
           const status = document.getElementById("status");

@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import QuizCreate from './components/QuizCreate/QuizCreate';
@@ -10,27 +10,9 @@ import MySessions from './components/MySessions/MySessions';
 import MyQuizContent from './components/MyQuizContent/MyQuizContent';
 import NotFound from './components/NotFound/NotFound';
 import CreateSession from './components/CreateSession/CreateSession';
-import User from './types/User';
-import axios from 'axios';
 import JoinSession from './components/JoinSession/JoinSession';
 
 const App: React.FC = () => {
-  // State to store the current user
-  const [user, setUser] = useState<User>({
-    id: '67d4aafda97b4f67f45759bf', // Default user ID
-    username: 'Andre'
-  });
-
-  // Fetch user data from the backend API on component mount
-  useEffect(() => {
-    axios
-      .get('https://studyinterruptbackend.onrender.com/users/') // API endpoint to fetch users
-      .then(response => {
-        // Set the user to the first user in the response or a default user if the response is invalid
-        setUser(Array.isArray(response.data.users) ? response.data.users[0] : {id: '67e1c77552f341264138101b'});
-      });
-  }, []); // Empty dependency array ensures this runs only once
-
   return (
     <Router>
       {/* Navigation bar for various links in the web app */}
@@ -58,22 +40,22 @@ const App: React.FC = () => {
       <Container>
         {/* Routing configuration: maps paths to their respective components */}
         <Routes>
-          {/* Route for the Quiz page, passing the user as a prop */}
-          <Route path="/quiz" element={<Quiz user={user}/>} />
+          {/* Route for the Quiz page */}
+          <Route path="/quiz" element={<Quiz />} />
           {/* Route for the Quiz creation page */}
-          <Route path="/create-quiz" element={<QuizCreate user={user}/>} />
+          <Route path="/create-quiz" element={<QuizCreate />} />
           {/* Route for the User Form page */}
           <Route path="/user-form" element={<UserForm />} />
-          {/* Route for the History page, passing the user as a prop */}
-          <Route path="/history" element={<History user={user}/>} />
-          {/* Route for the Sessions page, passing the user as a prop */}
-          <Route path="/my-sessions" element={<MySessions user={user}/>} />
-          {/* Route for the Generated Content page, passing the user as a prop */}
-          <Route path="/my-quiz-content" element={<MyQuizContent user={user}/>} />
+          {/* Route for the History page */}
+          <Route path="/history" element={<History/>} />
+          {/* Route for the Sessions page */}
+          <Route path="/my-sessions" element={<MySessions />} />
+          {/* Route for the Generated Content page */}
+          <Route path="/my-quiz-content" element={<MyQuizContent />} />
           {/* Route for creating a new session of interruptions */}
-          <Route path="/create-session" element={<CreateSession user={user}/>} />
+          <Route path="/create-session" element={<CreateSession />} />
           {/* Route for joining someone else's session */}
-          <Route path="/join-session" element={<JoinSession user={user}/>} />
+          <Route path="/join-session" element={<JoinSession />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>

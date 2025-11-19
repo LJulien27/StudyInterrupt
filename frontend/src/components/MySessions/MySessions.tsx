@@ -1,13 +1,10 @@
 // MySessions.tsx
 import React from 'react';
 import { Container, Row, Col, Button, Form, Card } from 'react-bootstrap';
-import User from '../../types/User';
+import { useAuth } from '../../AuthContext';
 
-interface MySessionsProps {
-  user: User;
-}
-
-const MySessions: React.FC<MySessionsProps> = ({ user }) => {
+const MySessions: React.FC = () => {
+  const { user } = useAuth();
   return (
     <Container className="mt-4">
       <Row className="justify-content-center">

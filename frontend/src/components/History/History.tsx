@@ -5,15 +5,11 @@ import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import { Session } from "../../types/Sessions";
 import { Contest } from "../../types/Contests";
-import User from "../../types/User";
-
-// Defining the props interface for the History component
-interface HistoryProps {
-  user: User; // The current user object
-}
+import { useAuth } from "../../AuthContext";
 
 // Functional component to display session and contest history
-const History: React.FC<HistoryProps> = ({ user }) => {
+const History: React.FC = () => {
+  const { user } = useAuth();
   // State to manage the error modal visibility
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   // State to store error messages
@@ -25,10 +21,13 @@ const History: React.FC<HistoryProps> = ({ user }) => {
 
   // Fetch session and contest data when the component mounts
   useEffect(() => {
+    if (!user || (!user._id && !user.id)) return;
+    
+    const userId = (user as any)._id || user.id;
     const fetchData = async () => {
       try {
         // Fetching session data from the backend
-        const sessionResponse = await axios.get('https://studyinterruptbackend.onrender.com/users/67d4aafda97b4f67f45759bf/sessions');
+        const sessionResponse = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/sessions`);
         console.log("Sessions response:", sessionResponse.data);
         // Updating the sessions state with the fetched data
         setSessions(Array.isArray(sessionResponse.data.sessions) ? sessionResponse.data.sessions : []);
@@ -41,7 +40,7 @@ const History: React.FC<HistoryProps> = ({ user }) => {
 
       try {
         // Fetching contest data from the backend
-        const contestResponse = await axios.get('https://studyinterruptbackend.onrender.com/users/67d4aafda97b4f67f45759bf/contests');
+        const contestResponse = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/contests`);
         console.log("Contests response:", contestResponse.data);
         // Updating the contests state with the fetched data
         setContests(Array.isArray(contestResponse.data.contests) ? contestResponse.data.contests : []);
@@ -54,7 +53,7 @@ const History: React.FC<HistoryProps> = ({ user }) => {
     };
 
     fetchData(); // Call the fetchData function
-  }, []); // Empty dependency array ensures this runs only once
+  }, [user]); // Run when user changes
 
   return (
     <div>
