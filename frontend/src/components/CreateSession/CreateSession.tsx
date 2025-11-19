@@ -189,16 +189,26 @@ const CreateSession: React.FC = () => {
     let contest = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
     setContestId(contest.data._id)
     console.log(contestId)
-    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${userId}`);
+    const ws = new WebSocket(`wss://studyinterruptbackend.onrender.com/ws/${contest.data._id}/${user.username}/${user._id}`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("Connected!");
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      showError(`WebSocket connection failed: ${error}`);
+    };
+    ws.onclose = (event) => {
+      console.log("WebSocket closed:", event.code, event.reason);
+      if (event.code !== 1000) { // 1000 is normal closure
+        showError(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
+      }
+    };
     ws.onmessage = (e: MessageEvent) => {
       const msg = JSON.parse(e.data);
       console.log("received message")
       console.log(msg)
        switch (msg.type) {
-        case "start_game":
+        case "game_start":
           console.log("Game started!");
           // msg.payload contains session, quizzes, interrupts
           setSession(msg.payload.session);
