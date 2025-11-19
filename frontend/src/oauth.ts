@@ -10,7 +10,7 @@ export async function initOAuth() {
       chrome.identity.getAuthToken({ interactive }, function(result) {
         const token = result?.token;
         if (chrome.runtime.lastError || !token) {
-          reject(chrome.runtime.lastError);
+          reject(chrome.runtime.lastError ?? new Error("User did not log in"));
         } else {
           resolve(token);
         }
