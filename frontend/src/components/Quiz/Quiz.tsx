@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Container, Button, Form, FloatingLabel, InputGroup } from 'react-bootstrap';
 import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
-import User from '../../types/User';
 import { Username } from '../../types/Sessions';
+import { useAuth } from '../../AuthContext';
 
 interface Quiz {
   _id: string;
@@ -11,10 +11,6 @@ interface Quiz {
   creator_id: string;
   session_id: string;
   created_at: string;
-}
-
-interface QuizProps {
-  user: User;
 }
 
 interface Contest {
@@ -59,7 +55,8 @@ interface ContestNoId {
 
 
 
-const Quiz: React.FC<QuizProps> = ({ user }) => {
+const Quiz: React.FC = () => {
+  const { user } = useAuth();
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [contest, setContest] = useState<Contest | null>(null);
   const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
@@ -69,14 +66,16 @@ const Quiz: React.FC<QuizProps> = ({ user }) => {
   const [Questions, setQuestions] = useState<Question[]>([]);
 
   useEffect(() => {
+    if (!user || (!user._id && !user.id)) return;
+    
+    const userId = (user as any)._id || user.id;
     const fetchQuizzes = async () => {
-      const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${user.id}/quizzes`);//replace with route user id
+      const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/quizzes`);
       setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
-      
     };
   
     fetchQuizzes();
-  }, []); //replace with route user id
+  }, [user]);
 
   const handleQuizSelect = async (quiz: Quiz) => {
     try {

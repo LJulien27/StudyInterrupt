@@ -2,14 +2,9 @@
 import React, { useState, useRef, useEffect  } from 'react';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup } from 'react-bootstrap';
 import OopsModal from '../Default/OopsModal';
-import User from '../../types/User';
+import { useAuth } from '../../AuthContext';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
-
-
-interface JoinSessionProps {
-  user: User;
-}
 
 interface Message {
   type: string;
@@ -19,7 +14,8 @@ interface Message {
 }
 
 
-const JoinSession: React.FC<JoinSessionProps> = ({ user }) => {
+const JoinSession: React.FC = () => {
+  const { user } = useAuth();
   const { contest_id } = useParams(); // extract from path like /contest/:contest_id
   const [participants, setParticipants] = useState(''); // Comma-separated usernames
 
@@ -39,16 +35,19 @@ const JoinSession: React.FC<JoinSessionProps> = ({ user }) => {
   };
 
 useEffect(() => {
+  if (!user || (!user._id && !user.id) || !contest_id) return;
+  
+  const userId = (user as any)._id || user.id;
 // this runs when component loads (like onload)
 console.log("Page loaded for contest:", contest_id);
 //here we need to create the websocket
 
   const userNameObject = {
-      id: user.id,
+      id: userId,
       username: user.username
     };
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/${contestId}/${user.id}`);
+    const ws = new WebSocket(`ws://localhost:8000/ws/${contestId}/${userId}`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("Connected!");
@@ -58,7 +57,7 @@ console.log("Page loaded for contest:", contest_id);
     };
     ws.onclose = () => console.log("Disconnected");
 
-}, [contest_id]);
+}, [contest_id, user, contestId]);
 
 
   

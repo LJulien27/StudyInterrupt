@@ -7,14 +7,12 @@ import OopsModal from '../Default/OopsModal'; // Modal for displaying errors
 import { Button, Form, FloatingLabel, Card } from 'react-bootstrap'; // Bootstrap components for UI
 import Question, { QuestionType } from '../../types/Question'; // Question type definitions
 import User from '../../types/User'; // User type definition
+import { useAuth } from "../../AuthContext";
 
 // Defining the props interface for the QuizCreate component
-interface QuizCreateProps {
-  user: User; // The current user object
-}
 
 // Functional component to create a quiz
-const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
+const QuizCreate = () => {
   // State variables for managing quiz details
   const [quizName, setQuizName] = useState(''); // Quiz name
   const [quizClass, setQuizClass] = useState(''); // Class name
@@ -23,7 +21,7 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null); // Index of the question being edited
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false); // State for error modal visibility
   const [errorMessage, setErrorMessage] = useState(''); // Error message to display
-
+  const { user } = useAuth();
   // Function to handle adding or editing a question
   const handleAddQuestion = (newQuestion: Question) => {
     if (editingIndex !== null) {
@@ -52,9 +50,15 @@ const QuizCreate: React.FC<QuizCreateProps> = ({ user }) => {
 
   // Function to handle submitting the quiz
   const handleSubmitQuiz = async () => {
+    if (!user || !user._id) {
+      setErrorMessage("You must be logged in to create a quiz. Please sign in first.");
+      setIsErrorModalOpen(true);
+      return;
+    }
+
     const quizObject = {
       title: quizName, // Quiz title
-      creator_id: user.id, // User ID of the quiz creator
+      creator_id: user._id, // User ID of the quiz creator
       session_id: null, // Placeholder for session ID
       created_at: new Date(), // Current timestamp
     };
