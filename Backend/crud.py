@@ -300,7 +300,7 @@ def create_user(user: User):
     try:
         # Ensure required fields are provided
         if not user.username or not user.email or not user.google_id:
-            raise HTTPException(status_code=400, detail="Username, email, and password are required")
+            raise HTTPException(status_code=400, detail="Username, email, and google_id are required")
 
         # Check for existing email to prevent duplicate registrations
         if users_collection.find_one({"email": user.email}):
