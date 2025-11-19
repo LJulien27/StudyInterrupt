@@ -24,18 +24,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const user = await fetchUserInfo(newToken);
           status.textContent = `Signed in as ${user.name}`;
-          const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub).then(r => r.json())
+          const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub)
           if (res.status === 404) {
             console.log("Creating user: ", user.sub);
-            const now = new Date();
+            const now = new Date().toISOString();
             let userObject = {
               username: user.name,
               email: user.email,
-              googleid: user.sub,
-              createdat: now,
+              google_id: user.sub,
+              created_at: now,
             };
             console.log(userObject); // Debugging
-            let response = await fetch('https://studyinterruptbackend.onrender.com/users/',
+            let response = await fetch('https://studyinterruptbackend.onrender.com/users',
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

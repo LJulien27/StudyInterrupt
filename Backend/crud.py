@@ -299,7 +299,7 @@ def get_interrupt_by_id(interrupt_id):
 def create_user(user: User):
     try:
         # Ensure required fields are provided
-        if not user.username or not user.email or not user.password:
+        if not user.username or not user.email or not user.google_id:
             raise HTTPException(status_code=400, detail="Username, email, and password are required")
 
         # Check for existing email to prevent duplicate registrations
