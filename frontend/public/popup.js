@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           const user = await fetchUserInfo(newToken);
           status.textContent = `Signed in as ${user.name}`;
           const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub).then(r => r.json())
-          if (res.status == '404') {
+          if (res.status === 404) {
             console.log("Creating user: ", user.sub);
             const now = new Date();
             let userObject = {
@@ -44,6 +44,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             );
             const data = await response.json();
             console.log(data);
+          } else if (!res.ok) {
+            // Other errors (500, CORS, etc.)
+            throw new Error(`Server error: ${res.status}`);
           }
         } catch (err) {
           console.error("Error fetching user info:", err);
