@@ -21,11 +21,12 @@ def get_users():
     else:
         raise HTTPException(status_code=404, detail="No users found")
 
-def check_if_user_with_google_id(google_id):
+def get_user_with_google_id(google_id):
     # Fetch user by ID
     user = users_collection.find_one({"google_id": google_id})
     if user:
-        return True
+        user["_id"] = str(user["_id"])
+        return user
     else:
         raise HTTPException(status_code=404, detail="User with that google id not found")
 
