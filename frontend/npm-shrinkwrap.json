@@ -29,7 +29,7 @@
         "web-vitals": "^2.1.4"
       },
       "devDependencies": {
-        "@types/chrome": "^0.1.27"
+        "@types/chrome": "^0.1.30"
       }
     },
     "node_modules/@adobe/css-tools": {
@@ -3760,9 +3760,9 @@
       }
     },
     "node_modules/@types/chrome": {
-      "version": "0.1.27",
-      "resolved": "https://registry.npmjs.org/@types/chrome/-/chrome-0.1.27.tgz",
-      "integrity": "sha512-pkkCb0Ft8X+Igi751POzT+YqchSxUCtB6s4Gs6ttgSj8qzJga/qlJMgSW1mKxuQTW4i0sTqQbqVtzXDS5AU+4A==",
+      "version": "0.1.30",
+      "resolved": "https://registry.npmjs.org/@types/chrome/-/chrome-0.1.30.tgz",
+      "integrity": "sha512-rcP14i+ip4s3SLG6JzNOWIDd+0i8Bg+kBslHl8d4g6m/e2kEbWnR90AtlOPUZj9ONVRbKxnQUqsInxFzXyqLdA==",
       "dev": true,
       "license": "MIT",
       "dependencies": {
@@ -5777,9 +5777,9 @@
       }
     },
     "node_modules/caniuse-lite": {
-      "version": "1.0.30001703",
-      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001703.tgz",
-      "integrity": "sha512-kRlAGTRWgPsOj7oARC9m1okJEXdL/8fekFVcxA8Hl7GH4r/sN4OJn/i6Flde373T50KS7Y37oFbMwlE8+F42kQ==",
+      "version": "1.0.30001756",
+      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001756.tgz",
+      "integrity": "sha512-4HnCNKbMLkLdhJz3TToeVWHSnfJvPaq6vu/eRP0Ahub/07n484XHhBF5AJoSGHdVrS8tKFauUQz8Bp9P7LVx7A==",
       "funding": [
         {
           "type": "opencollective",
