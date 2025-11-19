@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 export async function initOAuth() {
   /*const contactsDiv = document.getElementById('contactsDiv');
     if (!contactsDiv) {
@@ -48,7 +46,7 @@ export async function initOAuth() {
         const token = await authenticate(true);
         const user = await fetchUserInfo(token);
         const res = await fetch('https://studyinterruptbackend.onrender.com/users/exists/' + user.sub).then(r => r.json())
-          if (res.status == '404') {
+          if (res.status == 404) {
             console.log("Creating user: ", user.sub);
             const now = new Date();
             let userObject = {
@@ -67,6 +65,9 @@ export async function initOAuth() {
             );
             const data = await response.json();
             console.log(data);
+          } else if (!res.ok) {
+            // Other errors (500, CORS, etc.)
+            throw new Error(`Server error: ${res.status}`);
           }
         const profile = await fetchUserProfile(token);
         //contactsDiv!.innerHTML = `<p>Welcome, ${profile.name} (${profile.email})</p>`;
