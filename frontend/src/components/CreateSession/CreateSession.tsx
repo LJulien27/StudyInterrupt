@@ -4,16 +4,12 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup } from 'react-bootstrap';
 import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
-import User from '../../types/User';
+import { useAuth } from '../../AuthContext';
 
 
 
 // Lightweight quiz type
 type QuizLite = { _id: string; title: string; created_at?: string | null };
-
-interface CreateSessionProps {
-  user: User;
-}
 
 interface Message {
   type: string;
@@ -30,7 +26,8 @@ const generateShareLink = (contest_id: string) => {
   return `${origin}/join-session/${contest_id}`;
 };
 
-const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
+const CreateSession: React.FC = () => {
+  const { user } = useAuth();
   const [sessionName, setSessionName] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -81,8 +78,10 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
         setLoadingQuizzes(true);
 
         //----- OPTION A: Real backend -----
+        if (!user || (!user._id && !user.id)) return;
+        const userId = (user as any)._id || user.id;
         const { data } = await axios.get<{ quizzes?: QuizLite[] }>(
-          `https://studyinterruptbackend.onrender.com/users/${user.id}/quizzes`
+          `https://studyinterruptbackend.onrender.com/users/${userId}/quizzes`
         );
         setAvailableQuizzes(Array.isArray(data?.quizzes) ? data.quizzes : []);
 
@@ -105,7 +104,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       }
     };
     loadQuizzes();
-  }, [user.id]);
+  }, [user]);
 
   const effectiveIntervalMinutes =
     intervalChoice === 'custom' ? Number(customInterval) : Number(intervalChoice);
@@ -146,7 +145,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
       participants: participants
         ? participants.split(',').map((p) => p.trim()).filter(Boolean)
         : [],
-      creator_id: user.id,
+      creator_id: (user as any)._id || user.id,
       contest_id: contestId ? contestId : null,
       is_public: isPublic,
       quizz_ids: selectedQuizIds,
@@ -167,10 +166,15 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
 
   // Connect to an existing contest via WebSocket
   const handleMakePublic = async() => {
-    console.log(user.id)
+    if (!user || (!user._id && !user.id)) {
+      showError('You must be logged in to make a session public.');
+      return;
+    }
+    const userId = (user as any)._id || user.id;
+    console.log(userId);
     if (!isPublic) {
       const userNameObject = {
-      id: user.id,
+      id: userId,
       username: user.username,
 
 
@@ -185,7 +189,7 @@ const CreateSession: React.FC<CreateSessionProps> = ({ user }) => {
     let contest = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
     setContestId(contest.data._id)
     console.log(contestId)
-    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${user.id}`);
+    const ws = new WebSocket(`ws://localhost:8000/ws/${contest.data._id}/${user.username}/${userId}`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("Connected!");

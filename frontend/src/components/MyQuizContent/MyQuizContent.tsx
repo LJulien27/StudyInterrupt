@@ -1,12 +1,8 @@
 import './MyQuizContent.css';
-import User from '../../types/User';
+import { useAuth } from '../../AuthContext';
 
-interface MyQuizContentProps {
-  user: User;
-}
-
-
-const MyQuizContent: React.FC<MyQuizContentProps> = ({ user }) => {
+const MyQuizContent: React.FC = () => {
+  const { user } = useAuth();
 
   return (
     <div className="Wrap">
