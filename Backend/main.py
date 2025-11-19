@@ -58,7 +58,7 @@ async def get_user_by_id(id: str):
     return crud.get_user_by_id(id)
 @app.get("/users/exists/{google_id}")
 async def check_if_user_with_google_id(google_id: str):
-    return crud.check_if_user_with_google_id(google_id)
+    return crud.get_user_with_google_id(google_id)
 
 @app.get("/users/{username}")
 async def get_user_by_username(username: str):
