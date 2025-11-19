@@ -49,6 +49,6 @@
     ]
   },
   "devDependencies": {
-    "@types/chrome": "^0.1.27"
+    "@types/chrome": "^0.1.30"
   }
 }
