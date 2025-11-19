@@ -92,19 +92,19 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
       return;
     }
 
-    // Step 1: Revoke token with Google
+    // Revoke token with Google
     fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`)
       .then(() => {
         console.log("Google token revoked.");
 
-        // Step 2: Remove token from Chrome cache
+        // Remove token from Chrome cache
         chrome.identity.removeCachedAuthToken({ token }, () => {
           console.log("Token removed from Chrome.");
 
-          // Step 3 (optional): Clear from your backend if needed
+          // Clear from your backend
           // fetch('https://your-backend.com/logout', { method: 'POST' });
 
-          // Step 4: Update UI
+          // Update UI
           const status = document.getElementById("status");
           if (status) status.textContent = "Logged out";
         });
