@@ -263,6 +263,10 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
         await websocket.send_json({"type": "can_not_join",  "text": "session has already started"})
         await websocket.close(code=4001)
         return
+    if len(contest.participants) > 5:
+        await websocket.send_json({"type": "can_not_join",  "text": "session is full"})
+        await websocket.close(code=4001)
+        return
 
     contest.participants.append(user)
 
@@ -284,9 +288,7 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
         while True:
             data = await websocket.receive_json()
             # --- Player answered ---
-            if data["type"] == "score":
-                user.score += 1
-                await contest.broadcast_scores()
+            contest.broadcast(data)
 
 
     except WebSocketDisconnect:
@@ -295,7 +297,7 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
             print("in disconnect")
             contest.participants.remove(user)
 
-            await contest.broadcast({"type": "user_left", "username": username})
+            await contest.broadcast({"type": "user_left", "payload": {"username": username}})
 
             print(f"User {username} disconnected from contest {contest_id}")
 
@@ -306,7 +308,6 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
         # If no one is left, clean up the contest
 
         if len(contest.participants) == 0:
-            await contest.broadcast({"type": "game_over"})
 
             del contests[contest_id]
 

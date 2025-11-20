@@ -99,7 +99,7 @@ const handleJoinSession = async () => {
           setPlayers(msg.payload.players); // { username: score, ... }
           break;
 
-        case "player_disconnected":
+        case "user_left":
           console.log(`${msg.payload.username} disconnected`);
           setPlayers((prev) =>
             prev.filter((p) => p.username !== msg.payload.username)
@@ -116,6 +116,11 @@ const handleJoinSession = async () => {
           console.log("user joined");
           setPlayers(msg.payload.players);
           break;
+        
+        case "can_not_join":
+          console.log("can't join");
+          break;
+
 
         default:
           console.warn("Unknown message type:", msg.type);
