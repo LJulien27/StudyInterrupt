@@ -214,28 +214,73 @@ const CreateSession: React.FC = () => {
       .filter((it) => it.type === 'quiz')
       .map((it) => (it as any).quizId);
 
-    const sessionObject = {
-      name: sessionName,
-      start_time: startTime,
-      end_time: endTime,
-      duration: durationMinutes,
-      interrupt_interval_minutes: effectiveIntervalMinutes,
-      participants: participants
-        ? participants.split(',').map((p) => p.trim()).filter(Boolean)
-        : [],
-      creator_id: (user as any)._id || user.id,
-      contest_id: contestId ? contestId : null,
-      is_public: isPublic,
-      quizz_ids: quizIdsFromQueue,
-      // include a serialized version of the queue for later processing by backends
-      interrupt_ids: interruptQueue.map((it) => ({ ...it })),
-      public_link: isPublic ? publicLink : null,
-      created_at: new Date().toISOString(),
-    };
-    console.log(sessionObject)
-
+    // Create Interrupt objects on the backend first, collect their IDs,
+    // then include those IDs in the session payload (the backend expects interrupt_ids to be strings)
     setCreating(true);
     try {
+      const userId = (user as any)._id || user.id;
+
+      // compute base time for interrupts (first interrupt at startTime)
+      const startMs = new Date(startTime).getTime();
+
+      const createdInterruptIds: string[] = [];
+
+      for (let i = 0; i < interruptQueue.length; i++) {
+        const it = interruptQueue[i];
+        // schedule each interrupt spaced by the selected interval
+        const interruptTime = new Date(startMs + i * effectiveIntervalMinutes * 60000).toISOString();
+
+        const interruptPayload: any = {
+          // type: integer identifier (frontend -> backend uses numeric types)
+          // 1 = quiz, 2 = link, 3 = youtube (chosen mapping)
+          type: it.type === 'quiz' ? 1 : it.type === 'link' ? 2 : 3,
+          link: it.type === 'quiz' ? '' : (it as any).url || '',
+          interrupt_time: interruptTime,
+          creator_id: userId,
+          session_id: null,
+          quiz_id: it.type === 'quiz' ? (it as any).quizId : null,
+        };
+
+        try {
+          const resp = await axios.post('https://studyinterruptbackend.onrender.com/interrupts', interruptPayload);
+          const created = resp.data;
+          // backend returns newly created object with _id
+          if (created && (created._id || created.id)) {
+            createdInterruptIds.push(created._id || created.id);
+          } else if (created && created.inserted_id) {
+            createdInterruptIds.push(created.inserted_id);
+          } else {
+            // fallback: if backend returned the full object without id, attempt to read ._id
+            createdInterruptIds.push((created && created._id) || '');
+          }
+        } catch (err: any) {
+          console.error('Failed to create interrupt', err);
+          showError(`Failed to create interrupt: ${err?.message || String(err)}`);
+          setCreating(false);
+          return;
+        }
+      }
+
+      const sessionObject = {
+        name: sessionName,
+        start_time: startTime,
+        end_time: endTime,
+        duration: durationMinutes,
+        interrupt_interval_minutes: effectiveIntervalMinutes,
+        participants: participants
+          ? participants.split(',').map((p) => p.trim()).filter(Boolean)
+          : [],
+        creator_id: userId,
+        contest_id: contestId ? contestId : null,
+        is_public: isPublic,
+        quizz_ids: quizIdsFromQueue,
+        // include the array of created interrupt IDs (strings)
+        interrupt_ids: createdInterruptIds,
+        public_link: isPublic ? publicLink : null,
+        created_at: new Date().toISOString(),
+      };
+      console.log('Session payload:', sessionObject);
+
       const { data } = await axios.post('https://studyinterruptbackend.onrender.com/sessions', sessionObject);
 
       // If this session is not public, notify the extension background immediately so the creator
