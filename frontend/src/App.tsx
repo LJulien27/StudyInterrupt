@@ -32,6 +32,7 @@ const App: React.FC = () => {
               <Nav.Link as={Link} to="/my-quiz-content">Generated Content</Nav.Link>
               {/* New button to start a session */}
               <Nav.Link as={Link} to="/create-session" style={{ fontWeight: 'bold', color: '#0d6efd' }}>Start a Session</Nav.Link>
+              <Nav.Link as={Link} to="/join-session">Join session</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
@@ -55,7 +56,7 @@ const App: React.FC = () => {
           {/* Route for creating a new session of interruptions */}
           <Route path="/create-session" element={<CreateSession />} />
           {/* Route for joining someone else's session */}
-          <Route path="/join-session" element={<JoinSession />} />
+          <Route path="/join-session/" element={<JoinSession />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>
