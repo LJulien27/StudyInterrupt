@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Study Break Extension",
     "version": "1.0",
-    "permissions": ["storage", "activeTab", "identity"],
+    "permissions": ["storage", "activeTab", "identity", "alarms", "tabs"],
     "host_permissions": ["https://api.example.com/*"],
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx6gPxM2EW83ZZITOCQuWWRWo44K+5oHVOUKqZk9cklpY1x2uMuLvQv5E/+ndLikdBGFngvCOpGTz0ILzj/EEHiXN9f/jKGNcRkB5nB1aqjHyy2GIGe3IXQoWaOKdd01jONGPKtVeAQ+AW2FeatsTOau4ra+DdpZJymebURaG36B7TheUOsDQelhmIIp6K/KV4iFjNfiXgSgfawJfXi6SsXZLbApzSYavvqMYt/o9rmH6kFmIjfx3RN4fW5WjeX0egr1af7OhKbjvaaK1c/WLuX7KNC4uO8ehyPM8QH1jrm5LO1YdSA4XJLPRAahL2vdjTldDE/5o26uWTb0nwWo99QIDAQAB",
     "oauth2": {

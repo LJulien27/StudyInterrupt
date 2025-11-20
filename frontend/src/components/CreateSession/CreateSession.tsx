@@ -1,7 +1,8 @@
 // Importing necessary libraries and components
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Button, Form, FloatingLabel, Card, Container, InputGroup } from 'react-bootstrap';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Button, Form, FloatingLabel, Card, Container, InputGroup, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import OopsModal from '../Default/OopsModal';
 import { useAuth } from '../../AuthContext';
@@ -56,6 +57,9 @@ const CreateSession: React.FC = () => {
   const [availableQuizzes, setAvailableQuizzes] = useState<QuizLite[]>([]);
   const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const showError = (msg: string) => {
     setErrorMessage(msg);
@@ -105,6 +109,71 @@ const CreateSession: React.FC = () => {
   const effectiveIntervalMinutes =
     intervalChoice === 'custom' ? Number(customInterval) : Number(intervalChoice);
 
+  // Helper: convert ISO or Date to the string format accepted by <input type="datetime-local" />
+  const toDateTimeLocal = (input: string | Date) => {
+    const d = typeof input === 'string' ? new Date(input) : input;
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const YYYY = d.getFullYear();
+    const MM = pad(d.getMonth() + 1);
+    const DD = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
+  };
+
+  // If the route includes quick=create params (e.g. #/create-session?quick=1&start=...)
+  // prefill the form fields so the user can immediately pick quizzes and submit.
+  useEffect(() => {
+    try {
+      // location.search may be empty when using hash routing; support params in location.hash too
+      let search = location.search || '';
+      if (!search && location.hash) {
+        const idx = location.hash.indexOf('?');
+        if (idx >= 0) search = location.hash.slice(idx);
+      }
+      if (!search) return;
+      const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+      if (params.get('quick') !== '1') return;
+
+      // Prefill fields only if they are empty to avoid overwriting user's edits
+      if (!sessionName) setSessionName('Quick Session');
+
+      const startParam = params.get('start');
+      const endParam = params.get('end');
+      const intervalParam = params.get('interval');
+      const isPublicParam = params.get('is_public');
+
+      if (startParam && !startTime) {
+        const val = toDateTimeLocal(startParam);
+        if (val) setStartTime(val);
+      }
+      if (endParam && !endTime) {
+        const val = toDateTimeLocal(endParam);
+        if (val) setEndTime(val);
+      }
+
+      if (intervalParam) {
+        if (['15', '30', '45', '60'].includes(intervalParam)) {
+          setIntervalChoice(intervalParam as '15'|'30'|'45'|'60');
+          setCustomInterval('' as any);
+        } else {
+          setIntervalChoice('custom');
+          const num = Number(intervalParam);
+          if (!Number.isNaN(num) && num > 0) setCustomInterval(num as any);
+        }
+      }
+
+      if (isPublicParam) {
+        setIsPublic(isPublicParam === 'true');
+      }
+    } catch (e) {
+      // ignore parse errors
+      console.warn('Failed to parse quick-create params', e);
+    }
+    // run once on mount or when location changes
+  }, [location]);
+
   const handleCreateSession = async () => {
     if (!sessionName || !startTime || !endTime) {
       showError('Please fill in all required fields.');
@@ -132,11 +201,13 @@ const CreateSession: React.FC = () => {
       return;
     }
 
+    const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
+
     const sessionObject = {
       name: sessionName,
       start_time: startTime,
       end_time: endTime,
-      duration: 30,
+      duration: durationMinutes,
       interrupt_interval_minutes: effectiveIntervalMinutes,
       participants: participants
         ? participants.split(',').map((p) => p.trim()).filter(Boolean)
@@ -151,12 +222,48 @@ const CreateSession: React.FC = () => {
     };
     console.log(sessionObject)
 
+    setCreating(true);
     try {
-      await axios.post('https://studyinterruptbackend.onrender.com/sessions', sessionObject);
-      alert('Session created successfully!');
+      const { data } = await axios.post('https://studyinterruptbackend.onrender.com/sessions', sessionObject);
 
+      // If this session is not public, notify the extension background immediately so the creator
+      // gets scheduled interrupts right away (background will dedupe if it's already scheduled).
+      if (!sessionObject.is_public) {
+          try {
+            const runtime = (window as any).chrome && (window as any).chrome.runtime;
+            const newSessionId = data && (data._id || data.id || data.session_id || null);
+            if (runtime && typeof runtime.sendMessage === 'function') {
+              try {
+                runtime.sendMessage({
+                  type: 'SESSION_STARTED',
+                  sessionId: newSessionId,
+                  interrupt_interval_minutes: sessionObject.interrupt_interval_minutes,
+                  // include end_time so background can store session end for countdowns
+                  end_time: sessionObject.end_time || null,
+                  // include duration (minutes) as a fallback if end_time is not present
+                  duration: sessionObject.duration || null,
+                  // include start_time when available
+                  start_time: sessionObject.start_time || null
+                }, (resp: any) => {
+                  // optional: log response
+                  console.log('SESSION_STARTED message sent to extension background', resp);
+                });
+              } catch (err) {
+                // sendMessage can throw in some contexts; swallow non-fatal errors
+                console.warn('Failed to send SESSION_STARTED to background', err);
+              }
+            }
+          } catch (e) {
+            console.warn('Could not reach chrome.runtime to send SESSION_STARTED', e);
+          }
+      }
+
+      // Keep spinner visible briefly, then navigate to landing page
+      setTimeout(() => navigate('/'), 1000);
+      // Note: don't clear `creating` here so spinner remains until navigation/unmount
     } catch (error: any) {
       showError(`Error: ${error?.message || 'An unknown error occurred.'}`);
+      setCreating(false);
     }
   };
 
@@ -301,31 +408,7 @@ const CreateSession: React.FC = () => {
                   {q.title}
                 </option>
               ))}
-            </Form.Select>
-            <Form.Text className="text-muted">
-              Hold Ctrl/Cmd to select multiple quizzes.
-            </Form.Text>
-
-            {selectedQuizIds.length > 0 && (
-              <div className="mt-2 d-flex flex-wrap gap-2">
-                {selectedQuizIds.map((id) => (
-                  <span key={id} className="badge rounded-pill text-bg-secondary">
-                    {quizById[id]?.title ?? id}
-                    <Button
-                      size="sm"
-                      variant="link"
-                      className="ms-1 p-0 text-white"
-                      onClick={() =>
-                        setSelectedQuizIds((prev) => prev.filter((x) => x !== id))
-                      }
-                    >
-                      ×
-                    </Button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </Form.Group>
+          </Form.Select>
 
           <FloatingLabel controlId="startTime" label="Start Time" className="mb-3">
             <Form.Control
@@ -344,6 +427,8 @@ const CreateSession: React.FC = () => {
               required
             />
           </FloatingLabel>
+
+          </Form.Group>
 
           <Form.Group className="mb-3">
             <Form.Label>Interrupt Interval</Form.Label>
@@ -417,9 +502,16 @@ const CreateSession: React.FC = () => {
           <Button
             variant="primary"
             onClick={handleCreateSession}
-            disabled={loadingQuizzes}
+            disabled={loadingQuizzes || creating}
           >
-            Create Session
+            {creating ? (
+              <>
+                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
+                Creating…
+              </>
+            ) : (
+              'Create Session'
+            )}
           </Button>
         </Form>
       </Card>
