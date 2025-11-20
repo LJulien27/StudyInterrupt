@@ -291,6 +291,19 @@ def get_interrupt_by_id(interrupt_id):
         return interrupt
     else:
         raise HTTPException(status_code=404, detail="Interrupt not found")
+    
+def get_contest_by_id(contest_id):
+    try:
+        obj_id = ObjectId(contest_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    contest = contests_collection.find_one({"_id": obj_id})
+    if contest:
+        contest["_id"] = str(contest["_id"])
+        return contest
+    else:
+        raise HTTPException(status_code=404, detail="Interrupt not found")
 
 
 
