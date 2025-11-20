@@ -303,7 +303,7 @@ def get_contest_by_id(contest_id):
         contest["_id"] = str(contest["_id"])
         return contest
     else:
-        raise HTTPException(status_code=404, detail="Interrupt not found")
+        raise HTTPException(status_code=404, detail="contest not found")
 
 
 
