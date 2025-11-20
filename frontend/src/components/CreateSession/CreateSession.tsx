@@ -19,11 +19,7 @@ interface Message {
 }
 
 const generateShareLink = (contest_id: string) => {
-  const origin =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "https://example.com";
-  return `${origin}/join-session/${contest_id}`;
+  return contest_id;
 };
 
 const CreateSession: React.FC = () => {
@@ -249,7 +245,7 @@ const CreateSession: React.FC = () => {
 
 
       setIsPublic(true);
-      setPublicLink((prev) => prev ?? generateShareLink(contestId));
+      setPublicLink(generateShareLink(contest.data._id));
     } else {
       setIsPublic(false);
       setPublicLink(null);

@@ -73,6 +73,10 @@ async def get_users():
 async def get_session(id: str):
     return crud.get_session_by_id(id)
 
+@app.get("/contests/{id}")
+async def get_contest(id: str):
+    return crud.get_contest_by_id(id)
+
 # Fetch all sessions for a specific user
 @app.get("/users/{id}/sessions")
 async def get_users_sessions(id: str):
