@@ -163,7 +163,11 @@ const handleJoinSession = async () => {
      </Form>
      </>
       )}
-      
+      <OopsModal
+        show={isErrorModalOpen}
+        onHide={() => setIsErrorModalOpen(false)}
+        errorMessage={errorMessage}
+      />
       
     </Container>
   );
