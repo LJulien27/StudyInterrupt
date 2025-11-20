@@ -12,6 +12,12 @@ import { useAuth } from '../../AuthContext';
 // Lightweight quiz type
 type QuizLite = { _id: string; title: string; created_at?: string | null };
 
+// Interruption queue item can be a quiz, a link, or a YouTube embed
+type InterruptItem =
+  | { id: string; type: 'quiz'; quizId: string; title: string }
+  | { id: string; type: 'link'; url: string; title?: string }
+  | { id: string; type: 'youtube'; url: string; title?: string };
+
 interface Message {
   type: string;
   username?: string;
@@ -53,9 +59,9 @@ const CreateSession: React.FC = () => {
   const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
   const [gameOver, setGameOver] = useState(false);
   const [finalScores, setFinalScores] = useState<{ username: string; score: number }[]>([]);
-  // Quiz selection states
+  // Quiz selection / interruption queue states
   const [availableQuizzes, setAvailableQuizzes] = useState<QuizLite[]>([]);
-  const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
+  const [interruptQueue, setInterruptQueue] = useState<InterruptItem[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
@@ -180,8 +186,8 @@ const CreateSession: React.FC = () => {
       return;
     }
 
-    if (selectedQuizIds.length === 0) {
-      showError('Please select at least one quiz to include in this session.');
+    if (interruptQueue.length === 0) {
+      showError('Please add at least one interruption to the queue (quiz, link, or video).');
       return;
     }
 
@@ -203,6 +209,11 @@ const CreateSession: React.FC = () => {
 
     const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
 
+    // derive quiz ids from queue (for backwards compatibility with backend)
+    const quizIdsFromQueue = interruptQueue
+      .filter((it) => it.type === 'quiz')
+      .map((it) => (it as any).quizId);
+
     const sessionObject = {
       name: sessionName,
       start_time: startTime,
@@ -215,8 +226,9 @@ const CreateSession: React.FC = () => {
       creator_id: (user as any)._id || user.id,
       contest_id: contestId ? contestId : null,
       is_public: isPublic,
-      quizz_ids: selectedQuizIds,
-      interrupt_ids: [],
+      quizz_ids: quizIdsFromQueue,
+      // include a serialized version of the queue for later processing by backends
+      interrupt_ids: interruptQueue.map((it) => ({ ...it })),
       public_link: isPublic ? publicLink : null,
       created_at: new Date().toISOString(),
     };
@@ -373,6 +385,95 @@ const CreateSession: React.FC = () => {
     }
   };
 
+  // Queue management helpers
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [newLinkTitle, setNewLinkTitle] = useState('');
+
+  const makeLocalId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+
+  const addQuizToQueue = (quiz: QuizLite) => {
+    setInterruptQueue((prev) => [
+      ...prev,
+      { id: makeLocalId(), type: 'quiz', quizId: quiz._id, title: quiz.title } as InterruptItem,
+    ]);
+  };
+
+  const addLinkToQueue = (type: 'link' | 'youtube') => {
+    if (!newLinkUrl.trim()) {
+      showError('Please enter a URL to add.');
+      return;
+    }
+    setInterruptQueue((prev) => [
+      ...prev,
+      { id: makeLocalId(), type, url: newLinkUrl.trim(), title: newLinkTitle.trim() || undefined } as InterruptItem,
+    ]);
+    setNewLinkUrl('');
+    setNewLinkTitle('');
+  };
+
+  const removeFromQueue = (id: string) => {
+    setInterruptQueue((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const moveQueueItem = (id: string, direction: 'up' | 'down') => {
+    setInterruptQueue((prev) => {
+      const idx = prev.findIndex((p) => p.id === id);
+      if (idx === -1) return prev;
+      const newArr = prev.slice();
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= newArr.length) return prev;
+      const tmp = newArr[swapIdx];
+      newArr[swapIdx] = newArr[idx];
+      newArr[idx] = tmp;
+      return newArr;
+    });
+  };
+
+  // Drag and drop handlers
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const onDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', id);
+    } catch (err) {
+      // some browsers may throw; ignore
+    }
+    setDraggingId(id);
+  };
+
+  const onDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const onDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = (() => {
+      try { return e.dataTransfer.getData('text/plain'); } catch { return null; }
+    })();
+    if (!sourceId) {
+      setDraggingId(null);
+      return;
+    }
+    if (sourceId === targetId) {
+      setDraggingId(null);
+      return;
+    }
+    setInterruptQueue((prev) => {
+      const idx = prev.findIndex((p) => p.id === sourceId);
+      const targetIdx = prev.findIndex((p) => p.id === targetId);
+      if (idx === -1 || targetIdx === -1) return prev;
+      const newArr = prev.slice();
+      const [item] = newArr.splice(idx, 1);
+      newArr.splice(targetIdx, 0, item);
+      return newArr;
+    });
+    setDraggingId(null);
+  };
+
+  const onDragEnd = () => setDraggingId(null);
+
   return (
     <Container className="mt-4">
       <h2>Create a New Interruption Session</h2>
@@ -389,45 +490,135 @@ const CreateSession: React.FC = () => {
             />
           </FloatingLabel>
 
-          {/* Quizzes Multi-Select */}
+          {/* Interruption Queue: choose quizzes or add links/videos */}
           <Form.Group className="mb-3">
-            <Form.Label>Your Quizzes (select one or more)</Form.Label>
-            <Form.Select
-              multiple
-              aria-label="Select one or more quizzes"
-              disabled={loadingQuizzes || !availableQuizzes.length}
-              value={selectedQuizIds}
-              onChange={(e) => {
-                const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
-                setSelectedQuizIds(opts);
-              }}
-              style={{ minHeight: 140 }}
-            >
-              {availableQuizzes.map((q) => (
-                <option key={q._id} value={q._id}>
-                  {q.title}
-                </option>
-              ))}
-          </Form.Select>
+            <Form.Label>Interruption Queue</Form.Label>
+            <div className="d-flex gap-3" style={{ alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 260 }}>
+                <div className="mb-2 d-flex justify-content-between align-items-center">
+                  <strong>Available Quizzes</strong>
+                  <small className="text-muted">Click + to add</small>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 6, padding: 8 }}>
+                  {loadingQuizzes ? (
+                    <div className="text-center py-3">
+                      <Spinner animation="border" size="sm" />
+                    </div>
+                  ) : availableQuizzes.length === 0 ? (
+                    <div className="text-muted">No quizzes available</div>
+                  ) : (
+                    availableQuizzes.map((q) => (
+                      <div key={q._id} className="d-flex justify-content-between align-items-center mb-2">
+                        <div style={{ flex: 1 }}>{q.title}</div>
+                        <Button size="sm" variant="outline-primary" onClick={() => addQuizToQueue(q)}>+</Button>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-          <FloatingLabel controlId="startTime" label="Start Time" className="mb-3">
-            <Form.Control
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              required
-            />
-          </FloatingLabel>
+                <div className="mt-3">
+                  <strong>Add link / video</strong>
+                  <Form.Control
+                    size="sm"
+                    className="mt-2 mb-2"
+                    placeholder="URL (e.g. https://...)"
+                    value={newLinkUrl}
+                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                  />
+                  <Form.Control
+                    size="sm"
+                    className="mb-2"
+                    placeholder="Optional title"
+                    value={newLinkTitle}
+                    onChange={(e) => setNewLinkTitle(e.target.value)}
+                  />
+                  <div className="d-flex gap-2">
+                    <Button size="sm" onClick={() => addLinkToQueue('link')} variant="outline-secondary">Add Link</Button>
+                    <Button size="sm" onClick={() => addLinkToQueue('youtube')} variant="outline-danger">Add YouTube</Button>
+                  </div>
+                </div>
+              </div>
 
-          <FloatingLabel controlId="endTime" label="End Time" className="mb-3">
-            <Form.Control
-              type="datetime-local"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              required
-            />
-          </FloatingLabel>
+              <div style={{ flex: 1, minWidth: 260 }}>
+                <div className="mb-2 d-flex justify-content-between align-items-center">
+                  <strong>Queue</strong>
+                  <small className="text-muted">Reorder or remove</small>
+                </div>
+                <div
+                  style={{ maxHeight: 360, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 6, padding: 8 }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const sourceId = (() => {
+                      try { return e.dataTransfer.getData('text/plain'); } catch { return null; }
+                    })();
+                    if (!sourceId) return;
+                    setInterruptQueue((prev) => {
+                      const idx = prev.findIndex((p) => p.id === sourceId);
+                      if (idx === -1) return prev;
+                      const newArr = prev.slice();
+                      const [item] = newArr.splice(idx, 1);
+                      newArr.push(item);
+                      return newArr;
+                    });
+                    setDraggingId(null);
+                  }}
+                >
+                  {interruptQueue.length === 0 ? (
+                    <div className="text-muted">No interruptions added yet</div>
+                  ) : (
+                    interruptQueue.map((it, idx) => (
+                      <div
+                        key={it.id}
+                        className="d-flex align-items-center justify-content-between mb-2"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, it.id)}
+                        onDragOver={(e) => onDragOver(e, it.id)}
+                        onDrop={(e) => onDrop(e, it.id)}
+                        onDragEnd={onDragEnd}
+                        style={{
+                          background: draggingId === it.id ? '#eef3ff' : 'transparent',
+                          borderRadius: 4,
+                          padding: 6,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div><strong>{it.type.toUpperCase()}</strong> {it.type === 'quiz' ? `— ${ (it as any).title }` : ''}</div>
+                          {it.type !== 'quiz' && (
+                            <div className="text-muted" style={{ fontSize: 12 }}>{(it as any).title || (it as any).url}</div>
+                          )}
+                        </div>
+                        <div className="d-flex flex-column align-items-end gap-1">
+                          <div className="d-flex gap-1">
+                            <Button size="sm" disabled={idx === 0} onClick={() => moveQueueItem(it.id, 'up')}>↑</Button>
+                            <Button size="sm" disabled={idx === interruptQueue.length - 1} onClick={() => moveQueueItem(it.id, 'down')}>↓</Button>
+                          </div>
+                          <Button size="sm" variant="outline-danger" onClick={() => removeFromQueue(it.id)}>Remove</Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
 
+            <FloatingLabel controlId="startTime" label="Start Time" className="mb-3 mt-3">
+              <Form.Control
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                required
+              />
+            </FloatingLabel>
+
+            <FloatingLabel controlId="endTime" label="End Time" className="mb-3">
+              <Form.Control
+                type="datetime-local"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                required
+              />
+            </FloatingLabel>
           </Form.Group>
 
           <Form.Group className="mb-3">

@@ -8,6 +8,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const hasChrome = typeof chrome !== 'undefined' && !!chrome.runtime;
 
+  // Helper to set accept button enabled/disabled state with visual cue
+  function setAcceptPending(enabled) {
+    if (!acceptButton) return;
+    try { acceptButton.disabled = !enabled; } catch (e) {}
+    try {
+      acceptButton.classList.toggle('disabled', !enabled);
+      acceptButton.title = enabled ? 'Accept the interrupt' : 'No interrupt pending';
+      acceptButton.style.opacity = enabled ? '' : '0.55';
+      acceptButton.style.cursor = enabled ? 'pointer' : 'not-allowed';
+    } catch (e) {}
+  }
+
   async function fetchUserInfo(token) {
     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + token }
@@ -70,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (acceptButton) {
     acceptButton.addEventListener('click', () => {
       status.textContent = 'Interrupt accepted';
-      try { acceptButton.disabled = true; } catch (e) {}
+      try { setAcceptPending(false); } catch (e) {}
       // Send a message to background if available
       if (hasChrome && chrome.runtime && chrome.runtime.sendMessage) {
         try {
@@ -178,8 +190,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (active) {
               // show active view with countdown
               if (acceptButton) acceptButton.style.display = '';
-              // set accept enabled only if an interrupt is pending
-              try { if (acceptButton) acceptButton.disabled = !pending; } catch (e) {}
+              // set accept enabled only if an interrupt is pending (visual + disabled)
+              setAcceptPending(pending);
               // compute next interrupt timestamp:
               // prefer explicit next_due if it's in the future; otherwise compute next multiple after last.
               const now = Date.now();
@@ -214,8 +226,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const nextTs = Date.now() + interval * 60000;
         const endTs = Number(localStorage.getItem('si_session_end')) || null;
         const pending = localStorage.getItem('si_interrupt_pending') === 'true';
-        try { if (acceptButton) acceptButton.disabled = !pending; } catch (e) {}
-        renderActiveView(nextTs, interval, Number.isFinite(endTs) ? endTs : null, pending);
+  setAcceptPending(pending);
+  renderActiveView(nextTs, interval, Number.isFinite(endTs) ? endTs : null, pending);
         status.textContent = 'Session active';
       } else {
         renderNoSessionView();
@@ -231,8 +243,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (acceptButton) acceptButton.style.display = '';
     if (quitButton) quitButton.style.display = '';
 
-    // reflect pending state on the accept button immediately
-    try { if (acceptButton) acceptButton.disabled = !pending; } catch (e) {}
+  // reflect pending state on the accept button immediately (visual + disabled)
+  try { setAcceptPending(pending); } catch (e) {}
 
     function update() {
       const now = Date.now();
