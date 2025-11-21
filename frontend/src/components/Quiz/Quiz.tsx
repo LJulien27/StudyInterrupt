@@ -77,6 +77,30 @@ const Quiz: React.FC = () => {
     fetchQuizzes();
   }, [user]);
 
+  // If the route/query contains a quizId param (or hash with params), auto-select that quiz when quizzes are loaded
+  useEffect(() => {
+    if (!Quizes || Quizes.length === 0) return;
+    try {
+      let search = window.location.search || '';
+      if ((!search || search === '') && window.location.hash) {
+        // hash may contain a route and query like #/quiz?quizId=...
+        const idx = window.location.hash.indexOf('?');
+        if (idx >= 0) search = window.location.hash.slice(idx);
+      }
+      if (!search) return;
+      const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+      const quizId = params.get('quizId') || params.get('id');
+      if (!quizId) return;
+      const match = Quizes.find((q) => q._id === quizId);
+      if (match) {
+        // auto-select
+        handleQuizSelect(match);
+      }
+    } catch (e) {
+      console.warn('Failed to auto-load quiz from URL', e);
+    }
+  }, [Quizes]);
+
   const handleQuizSelect = async (quiz: Quiz) => {
     try {
       const response = await axios.get(`https://studyinterruptbackend.onrender.com/quizzes/${quiz._id}/questions`); // Fetch full quiz details

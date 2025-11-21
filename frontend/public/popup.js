@@ -7,6 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const quitButton = document.getElementById('quitSession');
 
   const hasChrome = typeof chrome !== 'undefined' && !!chrome.runtime;
+  // current pending interrupt object (set when popup loads the pending interrupt)
+  let currentPendingInterrupt = null;
 
   // Helper to set accept button enabled/disabled state with visual cue
   function setAcceptPending(enabled) {
@@ -81,20 +83,97 @@ document.addEventListener("DOMContentLoaded", () => {
   // Accept Interrupt behaviour — send a runtime message and close the popup.
   if (acceptButton) {
     acceptButton.addEventListener('click', () => {
-      status.textContent = 'Interrupt accepted';
-      try { setAcceptPending(false); } catch (e) {}
-      // Send a message to background if available
-      if (hasChrome && chrome.runtime && chrome.runtime.sendMessage) {
-        try {
-          chrome.runtime.sendMessage({ type: 'ACCEPT_INTERRUPT' }, (resp) => {
-            // optional callback
-            console.log('ACCEPT_INTERRUPT response', resp);
-          });
-        } catch (err) {
-          console.warn('sendMessage failed', err);
+      // If we have a currently-loaded pending interrupt, handle context-specific accept actions
+      try {
+        if (currentPendingInterrupt) {
+          const it = currentPendingInterrupt;
+          // If this interrupt is a quiz, open the web app quiz route with the quiz id
+          const isQuiz = (Number(it.type) === 1) || Boolean(it.quiz_id || it.quizId || it._id);
+          if (isQuiz) {
+            const quizId = it.quiz_id || it.quizId || it._id;
+            try {
+              if (hasChrome && chrome.runtime && chrome.runtime.getURL && chrome.tabs && chrome.tabs.create) {
+                const url = chrome.runtime.getURL('build/index.html') + `#/quiz?quizId=${encodeURIComponent(quizId)}`;
+                chrome.tabs.create({ url }, (tab) => {
+                  console.log('Opened quiz tab', tab && tab.id);
+                });
+              } else {
+                // fallback to opening relative path
+                const url = 'index.html#/quiz?quizId=' + encodeURIComponent(quizId);
+                window.open(url, '_blank');
+              }
+            } catch (e) {
+              console.warn('Failed to open quiz tab', e);
+            }
+          } else if (Number(it.type) === 2 && it.link) {
+            // link interrupt: open link in new tab
+            try {
+              if (hasChrome && chrome.tabs && chrome.runtime && chrome.runtime.getURL) {
+                chrome.tabs.create({ url: it.link });
+              } else {
+                window.open(it.link, '_blank');
+              }
+            } catch (e) { console.warn('Failed to open link', e); }
+          }
         }
-      } else {
-        console.log('ACCEPT_INTERRUPT (simulated)');
+
+        // If we didn't have the interrupt loaded into memory, try reading cached interrupts from storage
+        if (!currentPendingInterrupt) {
+          try {
+            if (hasChrome && chrome.storage && chrome.storage.local && chrome.storage.local.get) {
+              chrome.storage.local.get(['si_session_interrupts', 'si_current_interrupt_now'], (items) => {
+                try {
+                  const ints = items && items.si_session_interrupts ? items.si_session_interrupts : null;
+                  const idx = Number(items && items.si_current_interrupt_now);
+                  if (Array.isArray(ints) && ints.length > 0 && Number.isFinite(idx)) {
+                    const it = ints[idx % ints.length];
+                    if (it && it.link) {
+                      try {
+                        chrome.tabs.create ? chrome.tabs.create({ url: it.link }) : window.open(it.link, '_blank');
+                      } catch (e) { window.open(it.link, '_blank'); }
+                    }
+                  }
+                } catch (e) { console.warn('Failed to open cached interrupt link', e); }
+              });
+            } else {
+              // fallback to localStorage
+              try {
+                const raw = localStorage.getItem('si_session_interrupts');
+                const idx = Number(localStorage.getItem('si_current_interrupt_now'));
+                const ints = raw ? JSON.parse(raw) : null;
+                if (Array.isArray(ints) && ints.length > 0 && Number.isFinite(idx)) {
+                  const it = ints[idx % ints.length];
+                  if (it && it.link) window.open(it.link, '_blank');
+                }
+              } catch (e) { /* ignore */ }
+            }
+          } catch (e) { console.warn('Failed to read cached interrupt for accept fallback', e); }
+        }
+
+        status.textContent = 'Interrupt accepted';
+        try { setAcceptPending(false); } catch (e) {}
+        // Send a message to background if available
+        if (hasChrome && chrome.runtime && chrome.runtime.sendMessage) {
+          try {
+            chrome.runtime.sendMessage({ type: 'ACCEPT_INTERRUPT' }, (resp) => {
+              console.log('ACCEPT_INTERRUPT response', resp);
+            });
+          } catch (err) {
+            console.warn('sendMessage failed', err);
+          }
+        } else {
+          console.log('ACCEPT_INTERRUPT (simulated)');
+        }
+        // Clear pending flag and any current interrupt marker in storage so popup will return to active view
+        try {
+          if (hasChrome && chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+            try { chrome.storage.local.set({ si_interrupt_pending: false, si_current_interrupt_now: null }); } catch (e) {}
+          } else {
+            try { localStorage.setItem('si_interrupt_pending', 'false'); localStorage.removeItem('si_current_interrupt_now'); } catch (e) {}
+          }
+        } catch (e) { /* ignore */ }
+      } catch (e) {
+        console.warn('Error handling accept', e);
       }
       // Close the popup window (if running inside an extension this will dismiss the popup)
       try { window.close(); } catch (e) { /* ignore */ }
@@ -207,6 +286,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 nextTs = now + interval * 60000;
               }
               renderActiveView(nextTs, interval, (Number.isFinite(endTs) ? endTs : null), pending);
+              // If there is a pending interrupt, attempt to fetch its payload (e.g. YouTube link)
+              if (pending) {
+                // try to load the pending interrupt details and render a richer view if available
+                try {
+                  chrome.storage.local.get(['si_session_id', 'si_current_interrupt_now'], (items2) => {
+                    const sid = (items2 && items2.si_session_id) || null;
+                    const idx = Number(items2 && items2.si_current_interrupt_now);
+                    if (sid && Number.isFinite(idx)) {
+                      loadAndRenderPendingInterrupt(sid, idx);
+                    }
+                  });
+                } catch (e) {
+                  console.warn('Failed to fetch pending interrupt info', e);
+                }
+              }
               status.textContent = 'Session active';
             } else {
               renderNoSessionView();
@@ -228,10 +322,158 @@ document.addEventListener("DOMContentLoaded", () => {
         const pending = localStorage.getItem('si_interrupt_pending') === 'true';
   setAcceptPending(pending);
   renderActiveView(nextTs, interval, Number.isFinite(endTs) ? endTs : null, pending);
+        // fallback: when running without chrome.storage we cannot fetch backend payloads
+        if (pending) {
+          // nothing to fetch in fallback mode
+        }
         status.textContent = 'Session active';
       } else {
         renderNoSessionView();
       }
+    }
+  }
+
+  // Helper: turn a YouTube URL into an embed URL
+  function getYouTubeEmbedUrl(url) {
+    try {
+      const u = new URL(url);
+      // common forms: https://www.youtube.com/watch?v=ID or https://youtu.be/ID
+      if (u.hostname.includes('youtu.be')) {
+        const id = u.pathname.slice(1);
+        return `https://www.youtube.com/embed/${id}`;
+      }
+      if (u.hostname.includes('youtube.com')) {
+        const v = u.searchParams.get('v');
+        if (v) return `https://www.youtube.com/embed/${v}`;
+        // maybe already an embed URL
+        if (u.pathname.includes('/embed/')) return url;
+      }
+    } catch (e) {
+      // not a valid URL
+    }
+    return null;
+  }
+
+  // Fetch interrupts for session and render the pending interrupt (if any)
+  async function loadAndRenderPendingInterrupt(sessionId, index) {
+    if (!content) return;
+    try {
+      // Prefer cached trimmed interrupts stored by background to avoid network calls
+      const useCached = (hasChrome && chrome.storage && chrome.storage.local && chrome.storage.local.get);
+      let interrupts = null;
+      if (useCached) {
+        try {
+          await new Promise((resolve) => {
+            try {
+              chrome.storage.local.get(['si_session_interrupts'], (items) => {
+                interrupts = items && items.si_session_interrupts ? items.si_session_interrupts : null;
+                resolve(null);
+              });
+            } catch (e) { resolve(null); }
+          });
+        } catch (e) { interrupts = null; }
+      }
+      // If no cached interrupts found, fetch from backend
+      if (!interrupts) {
+        const res = await fetch(`https://studyinterruptbackend.onrender.com/sessions/${sessionId}/interrupts`);
+        if (!res.ok) {
+          console.warn('Failed to fetch interrupts for session', res.status);
+          return;
+        }
+        const body = await res.json();
+        interrupts = body && body.interrupts ? body.interrupts : [];
+      }
+      if (!Array.isArray(interrupts) || interrupts.length === 0) return;
+      const idx = Number(index) || 0;
+      const interrupt = interrupts[idx % interrupts.length];
+      if (!interrupt) return;
+
+  // expose to global handler so Accept button can act on it
+  currentPendingInterrupt = interrupt;
+
+  // Recognize youtube interrupts by numeric type or link contents
+  const isYoutube = Number(interrupt.type) === 3 || (interrupt.link && /youtu/i.test(interrupt.link));
+  const isQuiz = Number(interrupt.type) === 1 || Boolean(interrupt.quiz_id || interrupt.quizId);
+  if (isYoutube && interrupt.link) {
+        const embed = getYouTubeEmbedUrl(interrupt.link);
+        if (!embed) return;
+
+        // render a video player in the content area with Accept + Close controls
+        content.innerHTML = `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <strong style="font-size:15px">Video Interrupt</strong>
+              <div>
+                <button id="popupWatchClose" class="neutral" style="margin-right:6px">Close</button>
+                <button id="popupWatchAccept" class="primary">Accept</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <iframe id="si_youtube_iframe" width="320" height="180" src="${embed}?rel=0&autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+          </div>
+        `;
+
+        // wire the close and accept controls
+        setTimeout(() => {
+          const closeBtn = document.getElementById('popupWatchClose');
+          const acceptWatch = document.getElementById('popupWatchAccept');
+          if (closeBtn) closeBtn.addEventListener('click', () => {
+            // simply render the active view again
+            try { localStorage.setItem('si_interrupt_pending', 'true'); } catch (e) {}
+            checkSessionState();
+          });
+          if (acceptWatch) acceptWatch.addEventListener('click', () => {
+            // accept interrupt: clear pending flag and notify background
+            try {
+              if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({ type: 'ACCEPT_INTERRUPT' }, (resp) => {
+                  console.log('ACCEPT_INTERRUPT response', resp);
+                });
+              }
+            } catch (e) { console.warn('Failed to send ACCEPT_INTERRUPT', e); }
+            try {
+              // clear pending and current index now marker
+              chrome.storage && chrome.storage.local && chrome.storage.local.set && chrome.storage.local.set({ si_interrupt_pending: false, si_current_interrupt_now: null }, () => {});
+            } catch (e) {}
+            // close popup UI if possible
+            try { window.close(); } catch (e) {}
+          });
+        }, 0);
+      }
+      else if (isQuiz) {
+        // Render a small quiz preview with an Open Quiz button
+        const title = interrupt.title || 'Quiz';
+        content.innerHTML = `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <strong style="font-size:15px">Quiz Interrupt</strong>
+              <div>
+                <button id="popupQuizClose" class="neutral" style="margin-right:6px">Close</button>
+                <button id="popupQuizOpen" class="primary">Open Quiz</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <p style="margin:0">{Title}</p>
+              <p style="margin:0;font-size:13px;color:#444">{time}</p>
+            </div>
+          </div>
+        `.replace('{Title}', title).replace('{time}', interrupt.interrupt_time || '');
+
+        setTimeout(() => {
+          const closeBtn = document.getElementById('popupQuizClose');
+          const openBtn = document.getElementById('popupQuizOpen');
+          if (closeBtn) closeBtn.addEventListener('click', () => {
+            checkSessionState();
+          });
+          if (openBtn) openBtn.addEventListener('click', () => {
+            // trigger the same open flow as the Accept button for quizzes
+            try { if (acceptButton) acceptButton.click(); } catch (e) { console.warn(e); }
+          });
+        }, 0);
+      }
+    } catch (e) {
+      console.warn('Error loading pending interrupt', e);
     }
   }
 

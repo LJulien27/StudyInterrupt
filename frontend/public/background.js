@@ -29,7 +29,14 @@ const STORAGE_KEYS = {
     LAST: 'si_last_interrupt_at',
     NEXT: 'si_next_due',
     END: 'si_session_end',
-    PENDING: 'si_interrupt_pending'
+    PENDING: 'si_interrupt_pending',
+    // index of the next interrupt to schedule (internal counter)
+    INDEX: 'si_current_interrupt_index',
+    // the interrupt index that just fired (set when alarm fires)
+    INDEX_NOW: 'si_current_interrupt_now'
+    ,
+    // stored interrupt payloads for this session (array)
+    INTERRUPTS: 'si_session_interrupts'
 };
 
 function scheduleInterrupts(intervalMinutes) {
@@ -66,7 +73,18 @@ function clearInterrupts() {
 // Stop the active session: clear stored active flag, pending flag and alarms.
 function stopSession(reason) {
     try {
-        chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE]: false, [STORAGE_KEYS.PENDING]: false }, () => {
+        // clear active flag and auxiliary session keys
+        const toClear = {
+            [STORAGE_KEYS.ACTIVE]: false,
+            [STORAGE_KEYS.PENDING]: false,
+            [STORAGE_KEYS.ID]: null,
+            [STORAGE_KEYS.INDEX]: 0,
+            [STORAGE_KEYS.INDEX_NOW]: null,
+            [STORAGE_KEYS.NEXT]: null,
+            [STORAGE_KEYS.LAST]: null,
+            [STORAGE_KEYS.INTERRUPTS]: null
+        };
+        chrome.storage.local.set(toClear, () => {
             console.log('Session stopped (auto):', reason || '(no reason)');
         });
     } catch (e) {
@@ -156,10 +174,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                             }
                         }
                     }
+                    // initialize interrupt indexing so popup can fetch the proper interrupt payload
+                    toStore[STORAGE_KEYS.INDEX] = 0;
+                    toStore[STORAGE_KEYS.INDEX_NOW] = null;
+                    // initialize interrupt indexing so popup can fetch the proper interrupt payload
+                    toStore[STORAGE_KEYS.INDEX] = 0;
+                    toStore[STORAGE_KEYS.INDEX_NOW] = null;
                     chrome.storage.local.set(toStore, () => {
                         console.log('Session started stored', sessionId, interval);
                     });
+
+                    // schedule alarms
                     scheduleInterrupts(Number(interval));
+
+                    // fetch full interrupt payloads for this session and store them locally for fast popup rendering
+                    if (sessionId) {
+                        try {
+                            fetch(`https://studyinterruptbackend.onrender.com/sessions/${sessionId}/interrupts`)
+                                .then((r) => {
+                                    if (!r.ok) throw new Error('Failed to fetch interrupts: ' + r.status);
+                                    return r.json();
+                                })
+                                .then((body) => {
+                                    const raw = body && body.interrupts ? body.interrupts : [];
+                                    // trim to necessary fields to save storage and bandwidth
+                                    const ints = Array.isArray(raw)
+                                        ? raw.map((it) => ({
+                                            _id: it && (it._id || it.id) ? (it._id || it.id) : null,
+                                            type: it && it.type != null ? it.type : null,
+                                            link: it && (it.link || it.url) ? (it.link || it.url) : null,
+                                            quiz_id: it && (it.quiz_id || it.quizId) ? (it.quiz_id || it.quizId) : null,
+                                            interrupt_time: it && (it.interrupt_time || it.time) ? (it.interrupt_time || it.time) : null,
+                                            title: it && (it.title || it.name) ? (it.title || it.name) : null
+                                        }))
+                                        : [];
+                                    try {
+                                        chrome.storage.local.set({ [STORAGE_KEYS.INTERRUPTS]: ints }, () => {
+                                            console.log('Stored', (ints && ints.length) || 0, 'trimmed interrupts for session', sessionId);
+                                        });
+                                    } catch (e) {
+                                        console.warn('Failed to persist interrupts to storage', e);
+                                    }
+                                })
+                                .catch((err) => console.warn('Error fetching session interrupts', err));
+                        } catch (e) {
+                            console.warn('Could not fetch session interrupts', e);
+                        }
+                    }
+
                     sendResponse({ ok: true, deduped: false });
                 });
             } catch (e) {
@@ -290,9 +352,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
                 // otherwise compute next due and mark pending as before
                 const nextDue = now + Number(interval) * 60000;
-                chrome.storage.local.set({ [STORAGE_KEYS.LAST]: now, [STORAGE_KEYS.NEXT]: nextDue, [STORAGE_KEYS.PENDING]: true }, () => {
-                    console.log('Recorded last interrupt timestamp, next due and set pending', new Date(now).toISOString(), new Date(nextDue).toISOString());
-                    tryOpenPopup('public/popup.html');
+                // atomically update last/next/pending and set the index of the interrupt that just fired
+                chrome.storage.local.get([STORAGE_KEYS.INDEX], (idxItems) => {
+                    const curIdx = (idxItems && Number(idxItems[STORAGE_KEYS.INDEX])) || 0;
+                    chrome.storage.local.set({
+                        [STORAGE_KEYS.LAST]: now,
+                        [STORAGE_KEYS.NEXT]: nextDue,
+                        [STORAGE_KEYS.PENDING]: true,
+                        [STORAGE_KEYS.INDEX_NOW]: curIdx,
+                        [STORAGE_KEYS.INDEX]: curIdx + 1
+                    }, () => {
+                        console.log('Recorded last interrupt timestamp, next due, set pending and current interrupt index', new Date(now).toISOString(), new Date(nextDue).toISOString(), 'idx=', curIdx);
+                        tryOpenPopup('public/popup.html');
+                    });
                 });
             });
         } catch (e) {
