@@ -182,6 +182,36 @@ async def add_user_session(session: Session):
     # add a check here to see if it's a public session or not
     session = create_user_session(session)
     print(session)
+    # Always backfill interrupt.session_id for interrupts referenced by this session.
+    # This ensures private sessions' interrupts are linked to the session in the DB.
+    try:
+        interrupts = []
+        for interrupt_id in session.get('interrupt_ids') or []:
+            interrupt = await get_interrupt_by_id(interrupt_id)
+            # interrupt returned from helper has '_id' as a string
+            interrupt["session_id"] = session['_id']
+            interrupt_obj = Interrupt(**interrupt)  # convert dict to model
+            # Use the DB string id (interrupt['_id']) when updating
+            try:
+                crud.update_interrupt(interrupt['_id'], interrupt_obj)
+            except Exception:
+                # best-effort: try using the original interrupt_id if present
+                try:
+                    crud.update_interrupt(interrupt_id, interrupt_obj)
+                except Exception as e:
+                    print('Failed to backfill interrupt session_id for', interrupt_id, e)
+            # fetch the updated interrupt for potential use
+            try:
+                interrupt_final = crud.get_interrupt_by_id(interrupt['_id'])
+            except Exception:
+                try:
+                    interrupt_final = crud.get_interrupt_by_id(interrupt_id)
+                except Exception:
+                    interrupt_final = None
+            if interrupt_final:
+                interrupts.append(interrupt_final)
+    except Exception as e:
+        print('Error while backfilling interrupts for session:', e)
     if session['is_public']:
        print("In Sessions")
        print("Handler PID:", os.getpid())
@@ -202,14 +232,8 @@ async def add_user_session(session: Session):
            quiz_final = crud.get_quiz_by_id(quiz['_id'])
            quizzes.append(quiz_final )
 
-       interrupts = []
-       for interrupt_id in session['interrupt_ids']:
-           interrupt = await get_interrupt_by_id(interrupt_id)
-           interrupt["session_id"] = session['_id']
-           interrupt_obj = Interrupt(**interrupt)  # ✅ convert dict to model
-           crud.update_interrupt(interrupt_obj.id, interrupt_obj)
-           interrupt_final = crud.get_interrupt_by_id(interrupt_obj.id)
-           interrupts.append(interrupt_final)
+      # interrupts are backfilled above (always); keep the `interrupts` list for broadcast
+      # (the variable `interrupts` was populated in the unconditional backfill block)
 
        players = [
            {"username": u.username, "id": u.id, "score": u.score}
