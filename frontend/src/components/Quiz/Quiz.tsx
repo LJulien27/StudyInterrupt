@@ -60,6 +60,7 @@ const Quiz: React.FC = () => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [contest, setContest] = useState<Contest | null>(null);
   const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
+  const [pendingInterruptId, setPendingInterruptId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string | string[] }>({});
   const [score, setScore] = useState<number | null>(null);
   const [Quizes, setQuizes] = useState<Quiz[]>([]);
@@ -76,6 +77,32 @@ const Quiz: React.FC = () => {
   
     fetchQuizzes();
   }, [user]);
+
+  // If the route/query contains a quizId param (or hash with params), auto-select that quiz when quizzes are loaded
+  useEffect(() => {
+    if (!Quizes || Quizes.length === 0) return;
+    try {
+      let search = window.location.search || '';
+      if ((!search || search === '') && window.location.hash) {
+        // hash may contain a route and query like #/quiz?quizId=...
+        const idx = window.location.hash.indexOf('?');
+        if (idx >= 0) search = window.location.hash.slice(idx);
+      }
+      if (!search) return;
+      const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+      const quizId = params.get('quizId') || params.get('id');
+      const interruptId = params.get('interruptId');
+      if (interruptId) setPendingInterruptId(interruptId);
+      if (!quizId) return;
+      const match = Quizes.find((q) => q._id === quizId);
+      if (match) {
+        // auto-select
+        handleQuizSelect(match);
+      }
+    } catch (e) {
+      console.warn('Failed to auto-load quiz from URL', e);
+    }
+  }, [Quizes]);
 
   const handleQuizSelect = async (quiz: Quiz) => {
     try {
@@ -161,6 +188,55 @@ const Quiz: React.FC = () => {
     
     setScore(finalScore);
     alert(`Quiz Submitted! You scored ${finalScore}%`);
+
+    // If this quiz was launched as an interrupt, persist a pending submission locally so the backend
+    // can be updated later when you add the server endpoint. This is frontend-only and safe to keep.
+    try {
+      if (pendingInterruptId) {
+        // Try to send the submission over an existing websocket first (frontend uses window.__si_ws)
+        try {
+          const ws = (window as any).__si_ws as WebSocket | undefined | null;
+          const userId = (user as any)?._id || (user as any)?.id || null;
+          const submissionMessage = {
+            type: 'submission',
+            payload: {
+              interrupt_id: pendingInterruptId,
+              user_id: userId,
+              score: finalScore,
+              submitted_at: new Date().toISOString()
+            }
+          };
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify(submissionMessage));
+              console.log('Sent interrupt submission over WebSocket:', submissionMessage);
+            } catch (e) {
+              console.warn('Failed to send submission over WebSocket, will fallback to localStorage', e);
+            }
+          } else {
+            console.log('No active WebSocket found; will save submission locally');
+          }
+        } catch (e) {
+          console.warn('Error while attempting to send submission via websocket', e);
+        }
+
+        const userId = (user as any)?._id || (user as any)?.id || null;
+        const submission = {
+          interrupt_id: pendingInterruptId,
+          user_id: userId,
+          score: finalScore,
+          submitted_at: new Date().toISOString(),
+        };
+        try {
+          localStorage.setItem(`si_pending_interrupt_submission_${pendingInterruptId}`, JSON.stringify(submission));
+        } catch (e) {
+          console.warn('Failed to save pending interrupt submission to localStorage', e);
+        }
+        console.log('Saved pending interrupt submission (frontend only):', submission);
+      }
+    } catch (e) {
+      console.warn('Error handling pending interrupt submission', e);
+    }
   };
 
   return (
