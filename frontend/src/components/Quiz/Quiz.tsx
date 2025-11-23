@@ -61,6 +61,9 @@ const Quiz: React.FC = () => {
   const [contest, setContest] = useState<Contest | null>(null);
   const [contestNoId, setContestNoId] = useState<ContestNoId | null>(null);
   const [pendingInterruptId, setPendingInterruptId] = useState<string | null>(null);
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedForDeletion, setSelectedForDeletion] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
   const [answers, setAnswers] = useState<{ [key: number]: string | string[] }>({});
   const [score, setScore] = useState<number | null>(null);
   const [Quizes, setQuizes] = useState<Quiz[]>([]);
@@ -105,6 +108,14 @@ const Quiz: React.FC = () => {
   }, [Quizes]);
 
   const handleQuizSelect = async (quiz: Quiz) => {
+    if (deleteMode) {
+      // toggle selection for deletion
+      setSelectedForDeletion((prev) => {
+        if (prev.includes(quiz._id)) return prev.filter((id) => id !== quiz._id);
+        return [...prev, quiz._id];
+      });
+      return;
+    }
     try {
       const response = await axios.get(`https://studyinterruptbackend.onrender.com/quizzes/${quiz._id}/questions`); // Fetch full quiz details
       setQuestions(Array.isArray(response.data.questions) ? response.data.questions : []); // Update state with fetched quiz
@@ -245,12 +256,51 @@ const Quiz: React.FC = () => {
       
       {!selectedQuiz ? (
         <>
-          <h4>Select a Quiz:</h4>
-          {Quizes.map((quiz) => (
-          <Button key={quiz._id} variant="primary" className="m-2" onClick={() => handleQuizSelect(quiz)}>
-            {quiz.title}
-          </Button>
-        ))}
+          <div className="d-flex align-items-center justify-content-between">
+            <h4>Select a Quiz:</h4>
+            <div>
+              {!deleteMode ? (
+                <Button variant="outline-danger" size="sm" onClick={() => { setDeleteMode(true); setSelectedForDeletion([]); }} className="me-2">Delete Quizzes</Button>
+              ) : (
+                <>
+                  <Button variant="danger" size="sm" onClick={async () => {
+                    if (selectedForDeletion.length === 0) {
+                      alert('No quizzes selected for deletion. Click quizzes to select them.');
+                      return;
+                    }
+                    const ok = window.confirm(`Are you sure you want to delete ${selectedForDeletion.length} quiz(es)? This will also delete their questions.`);
+                    if (!ok) return;
+                    setDeleting(true);
+                    try {
+                      for (const id of selectedForDeletion) {
+                        await axios.delete(`https://studyinterruptbackend.onrender.com/quizzes/${id}`);
+                      }
+                      // refresh quizzes list
+                      const userId = (user as any)?._id || (user as any)?.id;
+                      const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/quizzes`);
+                      setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
+                      setSelectedForDeletion([]);
+                      setDeleteMode(false);
+                    } catch (e) {
+                      console.error('Failed to delete quizzes', e);
+                      alert('Failed to delete quizzes. See console for details.');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }} className="me-2" disabled={deleting}>{deleting ? 'Deleting…' : 'Confirm Delete'}</Button>
+                  <Button variant="outline-secondary" size="sm" onClick={() => { setDeleteMode(false); setSelectedForDeletion([]); }}>Cancel</Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            {Quizes.map((quiz) => (
+              <Button key={quiz._id} variant={selectedForDeletion.includes(quiz._id) ? 'danger' : 'primary'} className="m-2" onClick={() => handleQuizSelect(quiz)}>
+                {quiz.title}
+              </Button>
+            ))}
+          </div>
         </>
       ) : (
         <>
