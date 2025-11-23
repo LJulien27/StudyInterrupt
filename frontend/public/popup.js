@@ -87,35 +87,41 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         if (currentPendingInterrupt) {
           const it = currentPendingInterrupt;
-          // If this interrupt is a quiz, open the web app quiz route with the quiz id
-          const isQuiz = (Number(it.type) === 1) || Boolean(it.quiz_id || it.quizId || it._id);
+          console.log('Accept clicked — currentPendingInterrupt:', it);
+          // Determine types robustly
+          const isQuiz = Number(it.type) === 1 || Boolean(it.quiz_id || it.quizId);
+          const isLink = Number(it.type) === 2 || Boolean(it.link);
+
           if (isQuiz) {
-            const quizId = it.quiz_id || it.quizId || it._id;
+            const quizId = it.quiz_id || it.quizId || it._id || '';
+            const interruptId = it._id || it.id || it.interrupt_id || '';
+            const rel = `#/quiz?quizId=${encodeURIComponent(quizId)}&interruptId=${encodeURIComponent(interruptId)}`;
             try {
               if (hasChrome && chrome.runtime && chrome.runtime.getURL && chrome.tabs && chrome.tabs.create) {
-                const url = chrome.runtime.getURL('build/index.html') + `#/quiz?quizId=${encodeURIComponent(quizId)}`;
+                const url = chrome.runtime.getURL('build/index.html') + rel;
                 chrome.tabs.create({ url }, (tab) => {
                   console.log('Opened quiz tab', tab && tab.id);
                 });
               } else {
-                // fallback to opening relative path
-                const url = 'index.html#/quiz?quizId=' + encodeURIComponent(quizId);
+                const url = 'index.html' + rel;
                 window.open(url, '_blank');
               }
             } catch (e) {
               console.warn('Failed to open quiz tab', e);
             }
-          } else if (Number(it.type) === 2 && it.link) {
-            // link interrupt: open link in new tab
+          } else if (isLink && it.link) {
+            // Generic link interrupt
             try {
-              if (hasChrome && chrome.tabs && chrome.runtime && chrome.runtime.getURL) {
+              if (hasChrome && chrome.tabs && chrome.tabs.create) {
                 chrome.tabs.create({ url: it.link });
               } else {
                 window.open(it.link, '_blank');
               }
             } catch (e) { console.warn('Failed to open link', e); }
+          } else {
+            console.log('Accept: no actionable data on currentPendingInterrupt');
           }
-        }
+  }
 
         // If we didn't have the interrupt loaded into memory, try reading cached interrupts from storage
         if (!currentPendingInterrupt) {
@@ -286,7 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 nextTs = now + interval * 60000;
               }
               renderActiveView(nextTs, interval, (Number.isFinite(endTs) ? endTs : null), pending);
-              // If there is a pending interrupt, attempt to fetch its payload (e.g. YouTube link)
+              // If there is a pending interrupt, attempt to fetch its payload (e.g. link payload)
               if (pending) {
                 // try to load the pending interrupt details and render a richer view if available
                 try {
@@ -333,26 +339,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Helper: turn a YouTube URL into an embed URL
-  function getYouTubeEmbedUrl(url) {
-    try {
-      const u = new URL(url);
-      // common forms: https://www.youtube.com/watch?v=ID or https://youtu.be/ID
-      if (u.hostname.includes('youtu.be')) {
-        const id = u.pathname.slice(1);
-        return `https://www.youtube.com/embed/${id}`;
-      }
-      if (u.hostname.includes('youtube.com')) {
-        const v = u.searchParams.get('v');
-        if (v) return `https://www.youtube.com/embed/${v}`;
-        // maybe already an embed URL
-        if (u.pathname.includes('/embed/')) return url;
-      }
-    } catch (e) {
-      // not a valid URL
-    }
-    return null;
-  }
+  // NOTE: YouTube-specific embed helper removed; videos are treated as generic links now.
 
   // Fetch interrupts for session and render the pending interrupt (if any)
   async function loadAndRenderPendingInterrupt(sessionId, index) {
@@ -391,58 +378,35 @@ document.addEventListener("DOMContentLoaded", () => {
   // expose to global handler so Accept button can act on it
   currentPendingInterrupt = interrupt;
 
-  // Recognize youtube interrupts by numeric type or link contents
-  const isYoutube = Number(interrupt.type) === 3 || (interrupt.link && /youtu/i.test(interrupt.link));
   const isQuiz = Number(interrupt.type) === 1 || Boolean(interrupt.quiz_id || interrupt.quizId);
-  if (isYoutube && interrupt.link) {
-        const embed = getYouTubeEmbedUrl(interrupt.link);
-        if (!embed) return;
-
-        // render a video player in the content area with Accept + Close controls
+  if (!isQuiz) {
+        // Render a simplified link preview for non-quiz interrupts. Accept will open the link.
+        const title = interrupt.title || 'Link';
         content.innerHTML = `
           <div>
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-              <strong style="font-size:15px">Video Interrupt</strong>
+              <strong style="font-size:15px">${title}</strong>
               <div>
                 <button id="popupWatchClose" class="neutral" style="margin-right:6px">Close</button>
-                <button id="popupWatchAccept" class="primary">Accept</button>
               </div>
             </div>
             <div style="margin-top:8px">
-              <iframe id="si_youtube_iframe" width="320" height="180" src="${embed}?rel=0&autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+              <p style="margin:0">${interrupt.interrupt_time || ''}</p>
+              <p style="margin-top:8px;font-size:13px;color:#007bff;word-break:break-all">${interrupt.link}</p>
             </div>
           </div>
         `;
 
-        // wire the close and accept controls
         setTimeout(() => {
           const closeBtn = document.getElementById('popupWatchClose');
-          const acceptWatch = document.getElementById('popupWatchAccept');
           if (closeBtn) closeBtn.addEventListener('click', () => {
-            // simply render the active view again
             try { localStorage.setItem('si_interrupt_pending', 'true'); } catch (e) {}
             checkSessionState();
-          });
-          if (acceptWatch) acceptWatch.addEventListener('click', () => {
-            // accept interrupt: clear pending flag and notify background
-            try {
-              if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
-                chrome.runtime.sendMessage({ type: 'ACCEPT_INTERRUPT' }, (resp) => {
-                  console.log('ACCEPT_INTERRUPT response', resp);
-                });
-              }
-            } catch (e) { console.warn('Failed to send ACCEPT_INTERRUPT', e); }
-            try {
-              // clear pending and current index now marker
-              chrome.storage && chrome.storage.local && chrome.storage.local.set && chrome.storage.local.set({ si_interrupt_pending: false, si_current_interrupt_now: null }, () => {});
-            } catch (e) {}
-            // close popup UI if possible
-            try { window.close(); } catch (e) {}
           });
         }, 0);
       }
       else if (isQuiz) {
-        // Render a small quiz preview with an Open Quiz button
+        // Render a small quiz preview without an Open button; Accept must be used to open the quiz
         const title = interrupt.title || 'Quiz';
         content.innerHTML = `
           <div>
@@ -450,7 +414,6 @@ document.addEventListener("DOMContentLoaded", () => {
               <strong style="font-size:15px">Quiz Interrupt</strong>
               <div>
                 <button id="popupQuizClose" class="neutral" style="margin-right:6px">Close</button>
-                <button id="popupQuizOpen" class="primary">Open Quiz</button>
               </div>
             </div>
             <div style="margin-top:8px">
@@ -462,13 +425,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setTimeout(() => {
           const closeBtn = document.getElementById('popupQuizClose');
-          const openBtn = document.getElementById('popupQuizOpen');
           if (closeBtn) closeBtn.addEventListener('click', () => {
             checkSessionState();
-          });
-          if (openBtn) openBtn.addEventListener('click', () => {
-            // trigger the same open flow as the Accept button for quizzes
-            try { if (acceptButton) acceptButton.click(); } catch (e) { console.warn(e); }
           });
         }, 0);
       }
@@ -591,3 +549,5 @@ document.addEventListener("DOMContentLoaded", () => {
   tryAuth();
   checkSessionState();
 });
+
+// NOTE: embedded player removed — YouTube interrupts are treated as regular links and opened in a new tab.

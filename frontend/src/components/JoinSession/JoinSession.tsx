@@ -63,6 +63,8 @@ const handleJoinSession = async () => {
 
     const ws = new WebSocket(`wss://studyinterruptbackend.onrender.com/ws/${contestId}/${user.username}/${userId}`);
     wsRef.current = ws;
+  // expose websocket globally so other parts of the app (e.g. Quiz) can send messages
+  try { (window as any).__si_ws = ws; } catch (e) { /* ignore */ }
 
     ws.onopen = () => {
       console.log("Connected!");
@@ -121,7 +123,10 @@ const handleJoinSession = async () => {
           console.warn("Unknown message type:", msg.type);
       }
     };
-    ws.onclose = () => console.log("Disconnected");
+    ws.onclose = () => {
+      console.log("Disconnected");
+      try { if ((window as any).__si_ws === ws) (window as any).__si_ws = null; } catch (e) {}
+    };
 
   } catch(err){
     console.error("Failed to join contest:", err);

@@ -12,11 +12,10 @@ import { useAuth } from '../../AuthContext';
 // Lightweight quiz type
 type QuizLite = { _id: string; title: string; created_at?: string | null };
 
-// Interruption queue item can be a quiz, a link, or a YouTube embed
+// Interruption queue item can be a quiz or a link
 type InterruptItem =
   | { id: string; type: 'quiz'; quizId: string; title: string }
-  | { id: string; type: 'link'; url: string; title?: string }
-  | { id: string; type: 'youtube'; url: string; title?: string };
+  | { id: string; type: 'link'; url: string; title?: string };
 
 interface Message {
   type: string;
@@ -223,7 +222,9 @@ const CreateSession: React.FC = () => {
       // compute base time for interrupts (first interrupt at startTime)
       const startMs = new Date(startTime).getTime();
 
-      const createdInterruptIds: string[] = [];
+  const createdInterruptIds: string[] = [];
+  // Keep trimmed interrupt payloads to send to the extension background for private sessions
+  const createdInterruptsTrimmed: any[] = [];
 
       for (let i = 0; i < interruptQueue.length; i++) {
         const it = interruptQueue[i];
@@ -232,7 +233,7 @@ const CreateSession: React.FC = () => {
 
         const interruptPayload: any = {
           // type: integer identifier (frontend -> backend uses numeric types)
-          // 1 = quiz, 2 = link, 3 = youtube (chosen mapping)
+          // 1 = quiz, 2 = link, 3 = video (legacy mapping)
           type: it.type === 'quiz' ? 1 : it.type === 'link' ? 2 : 3,
           link: it.type === 'quiz' ? '' : (it as any).url || '',
           interrupt_time: interruptTime,
@@ -252,6 +253,20 @@ const CreateSession: React.FC = () => {
           } else {
             // fallback: if backend returned the full object without id, attempt to read ._id
             createdInterruptIds.push((created && created._id) || '');
+          }
+          // prepare a trimmed copy for the extension background (client-side cache)
+          try {
+            const trimmed = {
+              _id: created && (created._id || created.id) ? (created._id || created.id) : null,
+              type: interruptPayload.type,
+              link: created && (created.link || interruptPayload.link) ? (created.link || interruptPayload.link) : null,
+              quiz_id: created && (created.quiz_id || interruptPayload.quiz_id) ? (created.quiz_id || interruptPayload.quiz_id) : null,
+              interrupt_time: created && (created.interrupt_time || interruptPayload.interrupt_time) ? (created.interrupt_time || interruptPayload.interrupt_time) : null,
+              title: (it as any).title || null
+            };
+            createdInterruptsTrimmed.push(trimmed);
+          } catch (e) {
+            // ignore trimming errors
           }
         } catch (err: any) {
           console.error('Failed to create interrupt', err);
@@ -291,22 +306,23 @@ const CreateSession: React.FC = () => {
             const newSessionId = data && (data._id || data.id || data.session_id || null);
             if (runtime && typeof runtime.sendMessage === 'function') {
               try {
-                runtime.sendMessage({
+                // include trimmed interrupt payloads for private sessions so the extension can cache them
+                const msg: any = {
                   type: 'SESSION_STARTED',
                   sessionId: newSessionId,
                   interrupt_interval_minutes: sessionObject.interrupt_interval_minutes,
-                  // include end_time so background can store session end for countdowns
                   end_time: sessionObject.end_time || null,
-                  // include duration (minutes) as a fallback if end_time is not present
                   duration: sessionObject.duration || null,
-                  // include start_time when available
                   start_time: sessionObject.start_time || null
-                }, (resp: any) => {
-                  // optional: log response
+                };
+                // if we collected trimmed interrupts, attach them so background doesn't need to call the API
+                if (createdInterruptsTrimmed && createdInterruptsTrimmed.length > 0) {
+                  msg.session_interrupts = createdInterruptsTrimmed;
+                }
+                runtime.sendMessage(msg, (resp: any) => {
                   console.log('SESSION_STARTED message sent to extension background', resp);
                 });
               } catch (err) {
-                // sendMessage can throw in some contexts; swallow non-fatal errors
                 console.warn('Failed to send SESSION_STARTED to background', err);
               }
             }
@@ -351,6 +367,9 @@ const CreateSession: React.FC = () => {
     console.log(contestId)
     const ws = new WebSocket(`wss://studyinterruptbackend.onrender.com/ws/${contest.data._id}/${user.username}/${user._id}`);
     wsRef.current = ws;
+
+  // expose websocket globally so other parts of the app (e.g. Quiz) can send messages
+  try { (window as any).__si_ws = ws; } catch (e) { /* ignore */ }
 
     ws.onopen = () => console.log("Connected!");
     ws.onerror = (error) => {
@@ -405,7 +424,10 @@ const CreateSession: React.FC = () => {
           console.warn("Unknown message type:", msg.type);
       }
     };
-    ws.onclose = () => console.log("Disconnected");
+    ws.onclose = () => {
+      console.log("Disconnected");
+      try { if ((window as any).__si_ws === ws) (window as any).__si_ws = null; } catch (e) {}
+    };
 
 
       setIsPublic(true);
@@ -443,18 +465,20 @@ const CreateSession: React.FC = () => {
     ]);
   };
 
-  const addLinkToQueue = (type: 'link' | 'youtube') => {
+  const addLinkToQueue = () => {
     if (!newLinkUrl.trim()) {
       showError('Please enter a URL to add.');
       return;
     }
     setInterruptQueue((prev) => [
       ...prev,
-      { id: makeLocalId(), type, url: newLinkUrl.trim(), title: newLinkTitle.trim() || undefined } as InterruptItem,
+      { id: makeLocalId(), type: 'link', url: newLinkUrl.trim(), title: newLinkTitle.trim() || undefined } as InterruptItem,
     ]);
     setNewLinkUrl('');
     setNewLinkTitle('');
   };
+
+  // No YouTube-specific parsing here; links are treated uniformly.
 
   const removeFromQueue = (id: string) => {
     setInterruptQueue((prev) => prev.filter((it) => it.id !== id));
@@ -578,8 +602,7 @@ const CreateSession: React.FC = () => {
                     onChange={(e) => setNewLinkTitle(e.target.value)}
                   />
                   <div className="d-flex gap-2">
-                    <Button size="sm" onClick={() => addLinkToQueue('link')} variant="outline-secondary">Add Link</Button>
-                    <Button size="sm" onClick={() => addLinkToQueue('youtube')} variant="outline-danger">Add YouTube</Button>
+                    <Button size="sm" onClick={() => addLinkToQueue()} variant="outline-secondary">Add Link</Button>
                   </div>
                 </div>
               </div>

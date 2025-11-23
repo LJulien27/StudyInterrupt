@@ -189,36 +189,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
                     // fetch full interrupt payloads for this session and store them locally for fast popup rendering
                     if (sessionId) {
-                        try {
-                            fetch(`https://studyinterruptbackend.onrender.com/sessions/${sessionId}/interrupts`)
-                                .then((r) => {
-                                    if (!r.ok) throw new Error('Failed to fetch interrupts: ' + r.status);
-                                    return r.json();
-                                })
-                                .then((body) => {
-                                    const raw = body && body.interrupts ? body.interrupts : [];
-                                    // trim to necessary fields to save storage and bandwidth
-                                    const ints = Array.isArray(raw)
-                                        ? raw.map((it) => ({
-                                            _id: it && (it._id || it.id) ? (it._id || it.id) : null,
-                                            type: it && it.type != null ? it.type : null,
-                                            link: it && (it.link || it.url) ? (it.link || it.url) : null,
-                                            quiz_id: it && (it.quiz_id || it.quizId) ? (it.quiz_id || it.quizId) : null,
-                                            interrupt_time: it && (it.interrupt_time || it.time) ? (it.interrupt_time || it.time) : null,
-                                            title: it && (it.title || it.name) ? (it.title || it.name) : null
-                                        }))
-                                        : [];
-                                    try {
-                                        chrome.storage.local.set({ [STORAGE_KEYS.INTERRUPTS]: ints }, () => {
-                                            console.log('Stored', (ints && ints.length) || 0, 'trimmed interrupts for session', sessionId);
-                                        });
-                                    } catch (e) {
-                                        console.warn('Failed to persist interrupts to storage', e);
-                                    }
-                                })
-                                .catch((err) => console.warn('Error fetching session interrupts', err));
-                        } catch (e) {
-                            console.warn('Could not fetch session interrupts', e);
+                        // If the caller provided session_interrupts in the message (trimmed payloads), prefer those
+                        if (msg && Array.isArray(msg.session_interrupts) && msg.session_interrupts.length > 0) {
+                            try {
+                                chrome.storage.local.set({ [STORAGE_KEYS.INTERRUPTS]: msg.session_interrupts }, () => {
+                                    console.log('Stored', msg.session_interrupts.length, 'trimmed interrupts for session', sessionId, '(from message)');
+                                });
+                            } catch (e) {
+                                console.warn('Failed to persist interrupts from message to storage', e);
+                            }
+                        } else {
+                            try {
+                                fetch(`https://studyinterruptbackend.onrender.com/sessions/${sessionId}/interrupts`)
+                                    .then((r) => {
+                                        if (!r.ok) throw new Error('Failed to fetch interrupts: ' + r.status);
+                                        return r.json();
+                                    })
+                                    .then((body) => {
+                                        const raw = body && body.interrupts ? body.interrupts : [];
+                                        // trim to necessary fields to save storage and bandwidth
+                                        const ints = Array.isArray(raw)
+                                            ? raw.map((it) => ({
+                                                _id: it && (it._id || it.id) ? (it._id || it.id) : null,
+                                                type: it && it.type != null ? it.type : null,
+                                                link: it && (it.link || it.url) ? (it.link || it.url) : null,
+                                                quiz_id: it && (it.quiz_id || it.quizId) ? (it.quiz_id || it.quizId) : null,
+                                                interrupt_time: it && (it.interrupt_time || it.time) ? (it.interrupt_time || it.time) : null,
+                                                title: it && (it.title || it.name) ? (it.title || it.name) : null
+                                            }))
+                                            : [];
+                                        try {
+                                            chrome.storage.local.set({ [STORAGE_KEYS.INTERRUPTS]: ints }, () => {
+                                                console.log('Stored', (ints && ints.length) || 0, 'trimmed interrupts for session', sessionId);
+                                            });
+                                        } catch (e) {
+                                            console.warn('Failed to persist interrupts to storage', e);
+                                        }
+                                    })
+                                    .catch((err) => console.warn('Error fetching session interrupts', err));
+                            } catch (e) {
+                                console.warn('Could not fetch session interrupts', e);
+                            }
                         }
                     }
 
