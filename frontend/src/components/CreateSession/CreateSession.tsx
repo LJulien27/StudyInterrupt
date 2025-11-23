@@ -31,7 +31,10 @@ const generateShareLink = (contest_id: string) => {
 const CreateSession: React.FC = () => {
   const { user } = useAuth();
   const [sessionName, setSessionName] = useState('');
-  const [startTime, setStartTime] = useState('');
+  // Separate date and time fields for start/end so user can edit time without opening a calendar
+  const [startDate, setStartDate] = useState(''); // yyyy-MM-dd
+  const [startTime, setStartTime] = useState(''); // HH:mm
+  const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('');
   const [participants, setParticipants] = useState('');
 
@@ -127,6 +130,18 @@ const CreateSession: React.FC = () => {
     return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
   };
 
+  // Helper: format yyyy-MM-dd for <input type="date">
+  const formatDate = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  // Helper: format HH:mm for <input type="time">
+  const formatTime = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   // If the route includes quick=create params (e.g. #/create-session?quick=1&start=...)
   // prefill the form fields so the user can immediately pick quizzes and submit.
   useEffect(() => {
@@ -149,13 +164,23 @@ const CreateSession: React.FC = () => {
       const intervalParam = params.get('interval');
       const isPublicParam = params.get('is_public');
 
-      if (startParam && !startTime) {
-        const val = toDateTimeLocal(startParam);
-        if (val) setStartTime(val);
+      if (startParam && !startDate && !startTime) {
+        try {
+          const d = new Date(startParam);
+          const dateStr = formatDate(d);
+          const timeStr = formatTime(d);
+          if (dateStr) setStartDate(dateStr);
+          if (timeStr) setStartTime(timeStr);
+        } catch (e) {}
       }
-      if (endParam && !endTime) {
-        const val = toDateTimeLocal(endParam);
-        if (val) setEndTime(val);
+      if (endParam && !endDate && !endTime) {
+        try {
+          const d = new Date(endParam);
+          const dateStr = formatDate(d);
+          const timeStr = formatTime(d);
+          if (dateStr) setEndDate(dateStr);
+          if (timeStr) setEndTime(timeStr);
+        } catch (e) {}
       }
 
       if (intervalParam) {
@@ -179,8 +204,22 @@ const CreateSession: React.FC = () => {
     // run once on mount or when location changes
   }, [location]);
 
+  // Autofill start/end to now and +1h if not already set
+  useEffect(() => {
+    try {
+      const now = new Date();
+      const later = new Date(now.getTime() + 60 * 60000);
+      if (!startDate) setStartDate(formatDate(now));
+      if (!startTime) setStartTime(formatTime(now));
+      if (!endDate) setEndDate(formatDate(later));
+      if (!endTime) setEndTime(formatTime(later));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
   const handleCreateSession = async () => {
-    if (!sessionName || !startTime || !endTime) {
+    if (!sessionName || !startDate || !startTime || !endDate || !endTime) {
       showError('Please fill in all required fields.');
       return;
     }
@@ -199,8 +238,11 @@ const CreateSession: React.FC = () => {
       return;
     }
 
-    const start = new Date(startTime).getTime();
-    const end = new Date(endTime).getTime();
+    // combine date + time into local datetime strings
+    const startLocal = `${startDate}T${startTime}`;
+    const endLocal = `${endDate}T${endTime}`;
+    const start = new Date(startLocal).getTime();
+    const end = new Date(endLocal).getTime();
     if (isNaN(start) || isNaN(end) || start >= end) {
       showError('Start time must be before end time.');
       return;
@@ -219,8 +261,8 @@ const CreateSession: React.FC = () => {
     try {
       const userId = (user as any)._id || user.id;
 
-      // compute base time for interrupts (first interrupt at startTime)
-      const startMs = new Date(startTime).getTime();
+  // compute base time for interrupts (first interrupt at startTime)
+  const startMs = new Date(startLocal).getTime();
 
   const createdInterruptIds: string[] = [];
   // Keep trimmed interrupt payloads to send to the extension background for private sessions
@@ -278,8 +320,8 @@ const CreateSession: React.FC = () => {
 
       const sessionObject = {
         name: sessionName,
-        start_time: startTime,
-        end_time: endTime,
+        start_time: startLocal,
+        end_time: endLocal,
         duration: durationMinutes,
         interrupt_interval_minutes: effectiveIntervalMinutes,
         participants: participants
@@ -670,23 +712,24 @@ const CreateSession: React.FC = () => {
               </div>
             </div>
 
-            <FloatingLabel controlId="startTime" label="Start Time" className="mb-3 mt-3">
-              <Form.Control
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required
-              />
-            </FloatingLabel>
-
-            <FloatingLabel controlId="endTime" label="End Time" className="mb-3">
-              <Form.Control
-                type="datetime-local"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                required
-              />
-            </FloatingLabel>
+            <Form.Group className="mb-3 mt-3">
+              <div className="d-flex gap-3 align-items-end">
+                <div style={{ flex: 1 }}>
+                  <Form.Label>Start</Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Control type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                    <Form.Control type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Form.Label>End</Form.Label>
+                  <div className="d-flex gap-2">
+                    <Form.Control type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                    <Form.Control type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+                  </div>
+                </div>
+              </div>
+            </Form.Group>
           </Form.Group>
 
           <Form.Group className="mb-3">
