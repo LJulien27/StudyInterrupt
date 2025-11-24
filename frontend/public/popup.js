@@ -6,6 +6,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const acceptButton = document.getElementById('acceptInterrupt');
   const quitButton = document.getElementById('quitSession');
 
+  // Create login/logout controls next to the Open Web App button if present
+  let loginButton = null;
+  let logoutButton = null;
+  if (openWebAppButton && openWebAppButton.parentElement) {
+    const container = document.createElement('div');
+    container.style.display = 'inline-flex';
+    container.style.gap = '6px';
+    container.style.marginLeft = '8px';
+
+    loginButton = document.createElement('button');
+    loginButton.id = 'popupLogin';
+    loginButton.className = 'primary';
+    loginButton.textContent = 'Login';
+    loginButton.style.display = 'none';
+
+    logoutButton = document.createElement('button');
+    logoutButton.id = 'popupLogout';
+    logoutButton.className = 'neutral';
+    logoutButton.textContent = 'Logout';
+    logoutButton.style.display = 'none';
+
+    container.appendChild(loginButton);
+    container.appendChild(logoutButton);
+    openWebAppButton.parentElement.appendChild(container);
+  }
+
   const hasChrome = typeof chrome !== 'undefined' && !!chrome.runtime;
   // current pending interrupt object (set when popup loads the pending interrupt)
   let currentPendingInterrupt = null;
@@ -29,38 +55,121 @@ document.addEventListener("DOMContentLoaded", () => {
     return res.json();
   }
 
+  // Toggle auth controls visibility based on login state
+  function updateAuthControls(loggedIn, userName) {
+    try {
+      if (status) status.textContent = loggedIn ? `Signed in as ${userName || ''}` : 'Not signed in';
+  // prefer the inline login control in the content area to avoid duplicate buttons
+  if (loginButton) loginButton.style.display = 'none';
+      if (logoutButton) logoutButton.style.display = loggedIn ? '' : 'none';
+      // If logged out, show a minimal not-logged-in view
+      if (!loggedIn) {
+        // hide accept/quit when not logged in
+        try { if (acceptButton) acceptButton.style.display = 'none'; } catch (e) {}
+        try { if (quitButton) quitButton.style.display = 'none'; } catch (e) {}
+        // show a simple login view in content
+        if (content) {
+          content.innerHTML = `
+            <div>
+              <p><strong>Not signed in</strong></p>
+              <p>Please sign in to access sessions and interruptions.</p>
+              <div style="margin-top:8px"><button id="popupLoginInline" class="primary">Login</button></div>
+            </div>
+          `;
+          setTimeout(() => {
+            const inline = document.getElementById('popupLoginInline');
+            if (inline) inline.addEventListener('click', () => startInteractiveLogin());
+          }, 0);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // Start an interactive login flow (opens OAuth consent) and store a minimal user object
+  function startInteractiveLogin() {
+    if (!hasChrome || !chrome.identity || !chrome.identity.getAuthToken) {
+      // fallback: open web app login page
+      try { window.open('index.html', '_blank'); } catch (e) {}
+      return;
+    }
+    chrome.identity.getAuthToken({ interactive: true }, async (token) => {
+      if (chrome.runtime.lastError || !token) {
+        console.warn('Interactive login failed', chrome.runtime.lastError);
+        return;
+      }
+      try {
+        const u = await fetchUserInfo(token);
+        // store minimal user info locally so other parts can detect logged-in state
+        try { localStorage.setItem('user', JSON.stringify({ name: u.name, email: u.email, google_id: u.sub })); } catch (e) {}
+        updateAuthControls(true, u.name);
+        // refresh view
+        checkSessionState();
+      } catch (e) {
+        console.warn('Failed to fetch userinfo during interactive login', e);
+      }
+    });
+  }
+
+  // Logout: remove cached token and clear local user state
+  function doLogout() {
+    try {
+      if (!hasChrome || !chrome.identity || !chrome.identity.getAuthToken || !chrome.identity.removeCachedAuthToken) {
+        // best-effort: clear local storage and update controls
+        try { localStorage.removeItem('user'); } catch (e) {}
+        updateAuthControls(false, null);
+        return;
+      }
+      // get cached token then remove it
+      chrome.identity.getAuthToken({ interactive: false }, (token) => {
+        if (chrome.runtime.lastError) {
+          // nothing to remove
+          try { localStorage.removeItem('user'); } catch (e) {}
+          updateAuthControls(false, null);
+          return;
+        }
+        chrome.identity.removeCachedAuthToken({ token }, () => {
+          try { localStorage.removeItem('user'); } catch (e) {}
+          updateAuthControls(false, null);
+        });
+      });
+    } catch (e) {
+      try { localStorage.removeItem('user'); } catch (e) {}
+      updateAuthControls(false, null);
+    }
+  }
+
   // Try to get a cached token; fall back to interactive sign-in.
   function tryAuth() {
     if (!hasChrome || !chrome.identity || !chrome.identity.getAuthToken) {
       status.textContent = 'Not running in extension — auth unavailable';
       return;
     }
-
     chrome.identity.getAuthToken({ interactive: false }, (token) => {
       if (chrome.runtime.lastError || !token) {
-        console.log('No cached token, prompting user interactively...');
+        // No cached token; show logged-out controls but try interactive silently
+        updateAuthControls(false, null);
         chrome.identity.getAuthToken({ interactive: true }, async (newToken) => {
           if (chrome.runtime.lastError || !newToken) {
             console.error('Login failed:', chrome.runtime.lastError);
-            status.textContent = 'Not signed in';
+            updateAuthControls(false, null);
             return;
           }
           try {
             const user = await fetchUserInfo(newToken);
-            status.textContent = `Signed in as ${user.name}`;
+            updateAuthControls(true, user.name);
           } catch (err) {
             console.error('Error fetching user info:', err);
-            status.textContent = 'Error fetching profile';
+            updateAuthControls(false, null);
           }
         });
       } else {
         (async () => {
           try {
             const user = await fetchUserInfo(token);
-            status.textContent = `Signed in as ${user.name}`;
+            updateAuthControls(true, user.name);
           } catch (err) {
             console.error('Error fetching user info:', err);
-            status.textContent = 'Error fetching profile';
+            updateAuthControls(false, null);
           }
         })();
       }
@@ -546,6 +655,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // initialize
+  // Wire login/logout button clicks (if created above)
+  try {
+    if (loginButton) loginButton.addEventListener('click', startInteractiveLogin);
+    if (logoutButton) logoutButton.addEventListener('click', doLogout);
+  } catch (e) { /* ignore */ }
+
+  // If a minimal user is stored in localStorage (from other flows), use it to set UI quickly
+  try {
+    const saved = localStorage.getItem('user');
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        updateAuthControls(true, u.name || u.username || '');
+      } catch (e) {
+        updateAuthControls(false, null);
+      }
+    }
+  } catch (e) {}
+
   tryAuth();
   checkSessionState();
 });
