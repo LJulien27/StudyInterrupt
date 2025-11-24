@@ -74,6 +74,19 @@ const CreateSession: React.FC = () => {
     setIsErrorModalOpen(true);
   };
 
+  // Autofill session name to "<FirstName>'s session" when a user is available
+  useEffect(() => {
+    try {
+      if (user && !sessionName) {
+        const full = (user && (user.username || user.name || user.displayName || '')) as string;
+        const first = full ? full.split(' ')[0] : '';
+        if (first) setSessionName(`${first}'s session`);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [user]);
+
   const quizById = useMemo(
     () => Object.fromEntries(availableQuizzes.map((q) => [q._id, q])),
     [availableQuizzes]
