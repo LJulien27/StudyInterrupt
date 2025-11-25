@@ -90,7 +90,7 @@ export async function initOAuth() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(userObject)
           }
-        );
+        ); 
         const data = await response.json();
         console.log(data);
         localStorage.setItem("user", JSON.stringify(data));

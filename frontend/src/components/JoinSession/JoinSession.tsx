@@ -23,10 +23,8 @@ const JoinSession: React.FC = () => {
 
   const [validContestID, setValidContestID] = useState(false);
 
-  const [scores, setScores] = useState<{ username: string; score: number }[]>([]);
-  const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
+  const [players, setPlayers] = useState<{ username: string; id: string; score: number}[]>([]);
   const [gameOver, setGameOver] = useState(false);
-  const [finalScores, setFinalScores] = useState<{ username: string; score: number }[]>([]);
 
 
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
@@ -81,7 +79,7 @@ const handleJoinSession = async () => {
         showError(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
       }
     };
-    ws.onmessage = (e: MessageEvent) => {
+     ws.onmessage = (e: MessageEvent) => {
       const msg = JSON.parse(e.data);
       console.log("received message")
       console.log(msg)
@@ -97,30 +95,54 @@ const handleJoinSession = async () => {
           break;
 
         case "score_update":
+          console.log(msg);
           console.log("Score update received!");
-          setPlayers(msg.payload.players); // { username: score, ... }
-          break;
 
-        case "player_disconnected":
-          console.log(`${msg.payload.username} disconnected`);
-          setPlayers((prev) =>
-            prev.filter((p) => p.username !== msg.payload.username)
+          setPlayers((prevPlayers) =>
+            prevPlayers.map((player) => {
+              if (player.username === msg.payload.username) {
+                return {
+                  ...player,
+                  score: msg.payload.score,
+                };
+              }
+              return player;
+            })
           );
+
           break;
 
         case "game_over":
+          console.log(msg);
           console.log("Game over!");
           setGameOver(true);
-          setFinalScores(scores);
           break;
         
         case "user_joined":
           console.log("user joined");
-          setPlayers(msg.payload.players);
+
+          setPlayers((prevPlayers) => {
+            const exists = prevPlayers.some(
+              (p) => p.username === msg.payload.username
+            );
+
+            if (exists) return prevPlayers;
+
+            return [
+              ...prevPlayers,
+              {
+                username: msg.payload.username,
+                id: msg.payload.id,
+                score: msg.payload.score,
+              },
+            ];
+          });
+
           break;
 
         default:
           console.warn("Unknown message type:", msg.type);
+          console.log(msg);
       }
     };
     ws.onclose = () => {

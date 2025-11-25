@@ -301,12 +301,7 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
         for p in c.participants:
             print(f" - {p.username} (id={p.id}, score={p.score})")
 
-    # NEW (Fixed)
-    players = [
-        {"username": u.username, "id": u.id, "score": u.score}
-        for u in contest.participants
-    ]
-    await contest.broadcast({"type": "user_joined", "payload": {"players": players}})
+    await contest.broadcast({"type": "user_joined", "payload": {"username": username, "id": user_id, "score": 0}})
 
     try:
         while True:
