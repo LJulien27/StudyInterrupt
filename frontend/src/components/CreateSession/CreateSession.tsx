@@ -57,10 +57,9 @@ const CreateSession: React.FC = () => {
   const [quizzes, setQuizzes] = useState("");
   const [interrupts, setInterrupts] = useState("");
 
-  const [scores, setScores] = useState<{ username: string; score: number }[]>([]);
-  const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
+
+  const [players, setPlayers] = useState<{ username: string; id: string; score: number }[]>([]);
   const [gameOver, setGameOver] = useState(false);
-  const [finalScores, setFinalScores] = useState<{ username: string; score: number }[]>([]);
   // Quiz selection / interruption queue states
   const [availableQuizzes, setAvailableQuizzes] = useState<QuizLite[]>([]);
   const [interruptQueue, setInterruptQueue] = useState<InterruptItem[]>([]);
@@ -453,34 +452,58 @@ const CreateSession: React.FC = () => {
           break;
 
         case "score_update":
+          console.log(msg);
           console.log("Score update received!");
-          setPlayers(msg.payload.players); // { username: score, ... }
-          break;
 
-        case "player_disconnected":
-          console.log(`${msg.payload.username} disconnected`);
-          setPlayers((prev) =>
-            prev.filter((p) => p.username !== msg.payload.username)
+          setPlayers((prevPlayers) =>
+            prevPlayers.map((player) => {
+              if (player.username === msg.payload.username) {
+                return {
+                  ...player,
+                  score: msg.payload.score,
+                };
+              }
+              return player;
+            })
           );
+
           break;
 
         case "game_over":
+          console.log(msg);
           console.log("Game over!");
           setGameOver(true);
-          setFinalScores(scores);
           break;
         
         case "user_joined":
           console.log("user joined");
-          setPlayers(msg.payload.players);
+
+          setPlayers((prevPlayers) => {
+            const exists = prevPlayers.some(
+              (p) => p.username === msg.payload.username
+            );
+
+            if (exists) return prevPlayers;
+
+            return [
+              ...prevPlayers,
+              {
+                username: msg.payload.username,
+                id: msg.payload.id,
+                score: msg.payload.score,
+              },
+            ];
+          });
+
           break;
 
         default:
           console.warn("Unknown message type:", msg.type);
+          console.log(msg);
       }
     };
     ws.onclose = () => {
-      console.log("Disconnected");
+      console.log("Disconnected from websocket");
       try { if ((window as any).__si_ws === ws) (window as any).__si_ws = null; } catch (e) {}
     };
 
@@ -491,7 +514,7 @@ const CreateSession: React.FC = () => {
       setIsPublic(false);
       setPublicLink(null);
       if (wsRef.current) {
-        wsRef.current.close();   // 👈 closes the WebSocket connection
+        wsRef.current.close();   //  closes the WebSocket connection
         wsRef.current = null;    // optional, clears the ref
       }
     }
