@@ -1,6 +1,6 @@
 // src/App.tsx
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import QuizCreate from './components/QuizCreate/QuizCreate';
 import UserForm from './components/UserForm/UserForm';
@@ -42,7 +42,7 @@ const App: React.FC = () => {
         {/* Routing configuration: maps paths to their respective components */}
         <Routes>
           {/* Route for the Quiz page */}
-          <Route path="/quiz" element={<Quiz />} />
+          <Route path="/" element={<Quiz />} />
           {/* Route for the Quiz creation page */}
           <Route path="/create-quiz" element={<QuizCreate />} />
           {/* Route for the User Form page */}

@@ -1,0 +1,19 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`NotFound Component Snapshot Testing matches snapshot 1`] = `
+<div>
+  <div
+    class="text-center mt-5 container"
+  >
+    <h1>
+      404
+    </h1>
+    <h3>
+      Page Not Found
+    </h3>
+    <p>
+      Sorry, the page you are looking for does not exist.
+    </p>
+  </div>
+</div>
+`;
