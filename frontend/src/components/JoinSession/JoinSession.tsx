@@ -23,7 +23,7 @@ const JoinSession: React.FC = () => {
 
   const [validContestID, setValidContestID] = useState(false);
 
-  const [players, setPlayers] = useState<{ id: string; username: string }[]>([]);
+  const [players, setPlayers] = useState<{ username: string; id: string; score: number}[]>([]);
   const [gameOver, setGameOver] = useState(false);
 
 
