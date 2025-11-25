@@ -25,7 +25,7 @@ const App: React.FC = () => {
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
               {/* Navigation links for different pages */}
-              <Nav.Link as={Link} to="/quiz">Quizzes</Nav.Link>
+              <Nav.Link as={Link} to="/">Quizzes</Nav.Link>
               <Nav.Link as={Link} to="/create-quiz">Create A Quiz</Nav.Link>
               <Nav.Link as={Link} to="/user-form">Parameters</Nav.Link>
               <Nav.Link as={Link} to="/my-sessions">Sessions</Nav.Link>
