@@ -4,6 +4,7 @@ import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
 import { Username } from '../../types/Sessions';
 import { useAuth } from '../../AuthContext';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 interface Quiz {
   _id: string;
@@ -107,6 +108,8 @@ const Quiz: React.FC = () => {
     }
   }, [Quizes]);
 
+  const { send, players: ctxPlayers } = useWebSocket();
+
   const handleQuizSelect = async (quiz: Quiz) => {
     if (deleteMode) {
       // toggle selection for deletion
@@ -165,7 +168,9 @@ const Quiz: React.FC = () => {
         }
       }
     });
-    const finalScore = Math.round((correctAnswers / Questions.length) * 100);
+  const finalScore = Math.round((correctAnswers / Questions.length) * 100);
+  // Points: 10 points per correct answer (used for interrupt scoring)
+  const pointsScore = correctAnswers * 10;
     //update contest grade
 
     /*
@@ -202,40 +207,45 @@ const Quiz: React.FC = () => {
 
     // If this quiz was launched as an interrupt, persist a pending submission locally so the backend
     // can be updated later when you add the server endpoint. This is frontend-only and safe to keep.
-    try {
-      if (pendingInterruptId) {
-        // Try to send the submission over an existing websocket first (frontend uses window.__si_ws)
         try {
-          const ws = (window as any).__si_ws as WebSocket | undefined | null;
-          const userId = (user as any)?._id || (user as any)?.id || null;
-          const submissionMessage = {
-            type: 'submission',
-            payload: {
-              interrupt_id: pendingInterruptId,
-              user_id: userId,
-              score: finalScore,
-              submitted_at: new Date().toISOString()
-            }
-          };
-          if (ws && ws.readyState === WebSocket.OPEN) {
+          if (pendingInterruptId) {
             try {
-              ws.send(JSON.stringify(submissionMessage));
-              console.log('Sent interrupt submission over WebSocket:', submissionMessage);
+              const userId = (user as any)?._id || (user as any)?.id || null;
+              // determine current score from context (if available)
+              let currentScore = 0;
+              try {
+                const me = (ctxPlayers || []).find((p: any) => (p.id && String(p.id) === String(userId)) || p.username === (user as any)?.username);
+                if (me && typeof me.score === 'number') currentScore = me.score;
+              } catch (e) {
+                currentScore = 0;
+              }
+              const newScore = currentScore + pointsScore;
+              // Broadcast a score_update so the server will forward to other participants
+              const scoreMsg = {
+                type: 'score_update',
+                payload: {
+                  username: (user as any)?.username,
+                  user_id: userId,
+                  score: newScore,
+                  interrupt_id: pendingInterruptId,
+                  submitted_at: new Date().toISOString(),
+                }
+              };
+              const sent = (send as any)(scoreMsg);
+              if (sent) console.log('Sent interrupt score update via WebSocket context:', scoreMsg);
+              else console.log('No active WebSocket found via context; will save submission locally');
             } catch (e) {
-              console.warn('Failed to send submission over WebSocket, will fallback to localStorage', e);
+              console.warn('Error while attempting to send score update via websocket context', e);
             }
-          } else {
-            console.log('No active WebSocket found; will save submission locally');
-          }
-        } catch (e) {
-          console.warn('Error while attempting to send submission via websocket', e);
-        }
 
         const userId = (user as any)?._id || (user as any)?.id || null;
         const submission = {
           interrupt_id: pendingInterruptId,
           user_id: userId,
-          score: finalScore,
+          // points earned for this interrupt
+          points_earned: pointsScore,
+          // total score after this submission (best effort, may be stale)
+          total_score: (ctxPlayers || []).find((p: any) => (p.id && String(p.id) === String(userId)) || p.username === (user as any)?.username)?.score ?? null,
           submitted_at: new Date().toISOString(),
         };
         try {

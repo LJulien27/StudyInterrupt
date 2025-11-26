@@ -11,9 +11,18 @@ import MyQuizContent from './components/MyQuizContent/MyQuizContent';
 import NotFound from './components/NotFound/NotFound';
 import CreateSession from './components/CreateSession/CreateSession';
 import JoinSession from './components/JoinSession/JoinSession';
+import Sidebar from './components/Sidebar/Sidebar';
+import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
+
+const SidebarContainer: React.FC = () => {
+  const { connected } = useWebSocket();
+  if (!connected) return null;
+  return <Sidebar />;
+};
 
 const App: React.FC = () => {
   return (
+    <WebSocketProvider>
     <Router>
       {/* Navigation bar for various links in the web app */}
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
@@ -38,9 +47,11 @@ const App: React.FC = () => {
         </Container>
       </Navbar>
 
-      <Container>
-        {/* Routing configuration: maps paths to their respective components */}
-        <Routes>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <main style={{ flex: 1 }}>
+          <Container>
+            {/* Routing configuration: maps paths to their respective components */}
+            <Routes>
           {/* Route for the Quiz page */}
           <Route path="/" element={<Quiz />} />
           {/* Route for the Quiz creation page */}
@@ -58,9 +69,13 @@ const App: React.FC = () => {
           {/* Route for joining someone else's session */}
           <Route path="/join-session/" element={<JoinSession />} />
           <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Container>
+            </Routes>
+          </Container>
+        </main>
+  <SidebarContainer />
+      </div>
     </Router>
+    </WebSocketProvider>
   );
 };
 
