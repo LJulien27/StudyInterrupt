@@ -187,7 +187,7 @@ async def add_user_session(session: Session):
     try:
         interrupts = []
         for interrupt_id in session.get('interrupt_ids') or []:
-            interrupt = await get_interrupt_by_id(interrupt_id)
+            interrupt = get_interrupt_by_id(interrupt_id)
             # interrupt returned from helper has '_id' as a string
             interrupt["session_id"] = session['_id']
             interrupt_obj = Interrupt(**interrupt)  # convert dict to model
