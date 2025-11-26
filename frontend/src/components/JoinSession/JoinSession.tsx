@@ -5,6 +5,7 @@ import OopsModal from '../Default/OopsModal';
 import { useAuth } from '../../AuthContext';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 interface Message {
   type: string;
@@ -34,6 +35,8 @@ const JoinSession: React.FC = () => {
   const [contestId, setContestId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const { connect, disconnect, registerHandler } = useWebSocket();
+  const wsHandlerUnsub = useRef<(() => void) | null>(null);
 
   const showError = (msg: string) => {
     setErrorMessage(msg);
@@ -59,96 +62,25 @@ const handleJoinSession = async () => {
     // Validate contest exists before connecting
     await axios.get(`https://studyinterruptbackend.onrender.com/contests/${contestId}`);
 
-    const ws = new WebSocket(`wss://studyinterruptbackend.onrender.com/ws/${contestId}/${user.username}/${userId}`);
-    wsRef.current = ws;
-  // expose websocket globally so other parts of the app (e.g. Quiz) can send messages
-  try { (window as any).__si_ws = ws; } catch (e) { /* ignore */ }
-
-    ws.onopen = () => {
-      console.log("Connected!");
-      setValidContestID(true);
-    };
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      showError(`WebSocket connection failed: ${error}`);
-      setValidContestID(false);
-    };
-    ws.onclose = (event) => {
-      console.log("WebSocket closed:", event.code, event.reason);
-      if (event.code !== 1000) { // 1000 is normal closure
-        showError(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
-      }
-    };
-     ws.onmessage = (e: MessageEvent) => {
-      const msg = JSON.parse(e.data);
-      console.log("received message")
-      console.log(msg)
-       switch (msg.type) {
-        case "game_start":
-          console.log("Game started!");
-          // msg.payload contains session, quizzes, interrupts
+    // Use the WebSocket context to connect and register a local message handler
+    connect(contestId, user.username, userId);
+    wsHandlerUnsub.current = registerHandler((msg: any) => {
+      switch (msg.type) {
+        case 'game_start':
           setSession(msg.payload.session);
           setQuizzes(msg.payload.quizzes);
           setInterrupts(msg.payload.interrupts);
-          setPlayers(msg.payload.players)
-          console.log(msg)
+          setPlayers(msg.payload.players || []);
           break;
-
-        case "score_update":
-          console.log(msg);
-          console.log("Score update received!");
-
-          setPlayers((prevPlayers) =>
-            prevPlayers.map((player) => {
-              if (player.username === msg.payload.username) {
-                return {
-                  ...player,
-                  score: msg.payload.score,
-                };
-              }
-              return player;
-            })
-          );
-
+        case 'score_update':
+          setPlayers((prevPlayers) => prevPlayers.map((player) => (player.username === msg.payload.username ? { ...player, score: msg.payload.score } : player)));
           break;
-
-        case "game_over":
-          console.log(msg);
-          console.log("Game over!");
-          setGameOver(true);
-          break;
-        
-        case "user_joined":
-          console.log("user joined");
-
-          setPlayers((prevPlayers) => {
-            const exists = prevPlayers.some(
-              (p) => p.username === msg.payload.username
-            );
-
-            if (exists) return prevPlayers;
-
-            return [
-              ...prevPlayers,
-              {
-                username: msg.payload.username,
-                id: msg.payload.id,
-                score: msg.payload.score,
-              },
-            ];
-          });
-
-          break;
-
         default:
-          console.warn("Unknown message type:", msg.type);
-          console.log(msg);
+          break;
       }
-    };
-    ws.onclose = () => {
-      console.log("Disconnected");
-      try { if ((window as any).__si_ws === ws) (window as any).__si_ws = null; } catch (e) {}
-    };
+    });
+    setValidContestID(true);
+
 
   } catch(err){
     console.error("Failed to join contest:", err);

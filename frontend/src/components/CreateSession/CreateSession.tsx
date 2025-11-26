@@ -1,6 +1,7 @@
 // Importing necessary libraries and components
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup, Spinner } from 'react-bootstrap';
 import axios from 'axios';
@@ -52,6 +53,8 @@ const CreateSession: React.FC = () => {
   const [contestId, setContestId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const { connect, disconnect, registerHandler } = useWebSocket();
+  const wsHandlerUnsub = useRef<(() => void) | null>(null);
 
   const [session, setSession] = useState("");
   const [quizzes, setQuizzes] = useState("");
@@ -419,104 +422,39 @@ const CreateSession: React.FC = () => {
     let contest = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
     setContestId(contest.data._id)
     console.log(contestId)
-    const ws = new WebSocket(`wss://studyinterruptbackend.onrender.com/ws/${contest.data._id}/${user.username}/${user._id}`);
-    wsRef.current = ws;
-
-  // expose websocket globally so other parts of the app (e.g. Quiz) can send messages
-  try { (window as any).__si_ws = ws; } catch (e) { /* ignore */ }
-
-    ws.onopen = () => console.log("Connected!");
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      showError(`WebSocket connection failed: ${error}`);
-    };
-    ws.onclose = (event) => {
-      console.log("WebSocket closed:", event.code, event.reason);
-      if (event.code !== 1000) { // 1000 is normal closure
-        showError(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
-      }
-    };
-    ws.onmessage = (e: MessageEvent) => {
-      const msg = JSON.parse(e.data);
-      console.log("received message")
-      console.log(msg)
-       switch (msg.type) {
-        case "game_start":
-          console.log("Game started!");
-          // msg.payload contains session, quizzes, interrupts
+    // connect via WebSocket context
+    connect(contest.data._id, user.username, user._id);
+    // register a local handler to forward messages into component state
+    wsHandlerUnsub.current = registerHandler((msg: any) => {
+      switch (msg.type) {
+        case 'game_start':
           setSession(msg.payload.session);
           setQuizzes(msg.payload.quizzes);
           setInterrupts(msg.payload.interrupts);
-          setPlayers(msg.payload.players)
-          console.log(msg)
+          setPlayers(msg.payload.players || []);
           break;
-
-        case "score_update":
-          console.log(msg);
-          console.log("Score update received!");
-
-          setPlayers((prevPlayers) =>
-            prevPlayers.map((player) => {
-              if (player.username === msg.payload.username) {
-                return {
-                  ...player,
-                  score: msg.payload.score,
-                };
-              }
-              return player;
-            })
-          );
-
+        case 'score_update':
+          setPlayers((prevPlayers) => prevPlayers.map((p) => (p.username === msg.payload.username ? { ...p, score: msg.payload.score } : p)));
           break;
-
-        case "game_over":
-          console.log(msg);
-          console.log("Game over!");
+        case 'game_over':
           setGameOver(true);
           break;
-        
-        case "user_joined":
-          console.log("user joined");
-
-          setPlayers((prevPlayers) => {
-            const exists = prevPlayers.some(
-              (p) => p.username === msg.payload.username
-            );
-
-            if (exists) return prevPlayers;
-
-            return [
-              ...prevPlayers,
-              {
-                username: msg.payload.username,
-                id: msg.payload.id,
-                score: msg.payload.score,
-              },
-            ];
-          });
-
+        case 'user_joined':
+          setPlayers((prevPlayers) => (prevPlayers.some((p) => p.username === msg.payload.username) ? prevPlayers : [...prevPlayers, { username: msg.payload.username, id: msg.payload.id, score: msg.payload.score }]));
           break;
-
         default:
-          console.warn("Unknown message type:", msg.type);
-          console.log(msg);
+          break;
       }
-    };
-    ws.onclose = () => {
-      console.log("Disconnected from websocket");
-      try { if ((window as any).__si_ws === ws) (window as any).__si_ws = null; } catch (e) {}
-    };
+    });
 
-
-      setIsPublic(true);
-      setPublicLink(generateShareLink(contest.data._id));
+    setIsPublic(true);
+    setPublicLink(generateShareLink(contest.data._id));
     } else {
       setIsPublic(false);
       setPublicLink(null);
-      if (wsRef.current) {
-        wsRef.current.close();   //  closes the WebSocket connection
-        wsRef.current = null;    // optional, clears the ref
-      }
+      // unregister local handler and disconnect
+      try { if (wsHandlerUnsub.current) { wsHandlerUnsub.current(); wsHandlerUnsub.current = null; } } catch (e) {}
+      disconnect();
     }
   };
 
