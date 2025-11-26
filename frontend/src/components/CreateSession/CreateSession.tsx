@@ -352,37 +352,35 @@ const CreateSession: React.FC = () => {
 
       const { data } = await axios.post('https://studyinterruptbackend.onrender.com/sessions', sessionObject);
 
-      // If this session is not public, notify the extension background immediately so the creator
-      // gets scheduled interrupts right away (background will dedupe if it's already scheduled).
-      if (!sessionObject.is_public) {
+      // Notify the extension background immediately so the creator (and popup) can pick up
+      // the newly-created session. Previously we only notified for private sessions; send
+      // the same message for public sessions as well so the popup recognizes public sessions.
+      try {
+        const runtime = (window as any).chrome && (window as any).chrome.runtime;
+        const newSessionId = data && (data._id || data.id || data.session_id || null);
+        if (runtime && typeof runtime.sendMessage === 'function') {
           try {
-            const runtime = (window as any).chrome && (window as any).chrome.runtime;
-            const newSessionId = data && (data._id || data.id || data.session_id || null);
-            if (runtime && typeof runtime.sendMessage === 'function') {
-              try {
-                // include trimmed interrupt payloads for private sessions so the extension can cache them
-                const msg: any = {
-                  type: 'SESSION_STARTED',
-                  sessionId: newSessionId,
-                  interrupt_interval_minutes: sessionObject.interrupt_interval_minutes,
-                  end_time: sessionObject.end_time || null,
-                  duration: sessionObject.duration || null,
-                  start_time: sessionObject.start_time || null
-                };
-                // if we collected trimmed interrupts, attach them so background doesn't need to call the API
-                if (createdInterruptsTrimmed && createdInterruptsTrimmed.length > 0) {
-                  msg.session_interrupts = createdInterruptsTrimmed;
-                }
-                runtime.sendMessage(msg, (resp: any) => {
-                  console.log('SESSION_STARTED message sent to extension background', resp);
-                });
-              } catch (err) {
-                console.warn('Failed to send SESSION_STARTED to background', err);
-              }
+            const msg: any = {
+              type: 'SESSION_STARTED',
+              sessionId: newSessionId,
+              interrupt_interval_minutes: sessionObject.interrupt_interval_minutes,
+              end_time: sessionObject.end_time || null,
+              duration: sessionObject.duration || null,
+              start_time: sessionObject.start_time || null
+            };
+            // attach trimmed interrupts (if any) so background can cache them for fast popup rendering
+            if (createdInterruptsTrimmed && createdInterruptsTrimmed.length > 0) {
+              msg.session_interrupts = createdInterruptsTrimmed;
             }
-          } catch (e) {
-            console.warn('Could not reach chrome.runtime to send SESSION_STARTED', e);
+            runtime.sendMessage(msg, (resp: any) => {
+              console.log('SESSION_STARTED message sent to extension background', resp);
+            });
+          } catch (err) {
+            console.warn('Failed to send SESSION_STARTED to background', err);
           }
+        }
+      } catch (e) {
+        console.warn('Could not reach chrome.runtime to send SESSION_STARTED', e);
       }
 
       // Keep spinner visible briefly, then navigate to landing page
