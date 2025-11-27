@@ -19,3 +19,5 @@ quizzes_collection = db["quizzes"]
 interrupts_collection = db["interrupts"]
 contests_collection = db["contests"]
 questions_collection = db["questions"]
+# Event log collection for contest events (score updates, joins, etc.)
+contest_events_collection = db["contest_events"]
