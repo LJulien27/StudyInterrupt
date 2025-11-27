@@ -212,8 +212,16 @@ export const SessionBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         const username = msg.payload.username || (msg.payload.user && msg.payload.user.username) || null;
         const delta = msg.payload.delta || msg.payload.points_earned || 0;
         if (!user_id) return false;
-        // fire-and-forget; ignore response
-        axios.post(`https://studyinterruptbackend.onrender.com/contests/${currentContestId}/submit`, { user_id, username, delta }).catch(() => { /* ignore */ });
+        // POST submit and, if the response contains an updated players list, update local state
+        axios.post(`https://studyinterruptbackend.onrender.com/contests/${currentContestId}/submit`, { user_id, username, delta })
+          .then((resp) => {
+            try {
+              if (resp && resp.data && Array.isArray(resp.data.players)) {
+                setPlayers(resp.data.players as Player[]);
+              }
+            } catch (e) { /* ignore */ }
+          })
+          .catch(() => { /* ignore submit errors */ });
         return true;
       }
       return false;

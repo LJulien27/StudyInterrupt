@@ -367,6 +367,7 @@ const CreateSession: React.FC = () => {
             const msg: any = {
               type: 'SESSION_STARTED',
               sessionId: newSessionId,
+              contest_id: sessionObject.contest_id || null,
               interrupt_interval_minutes: sessionObject.interrupt_interval_minutes,
               end_time: sessionObject.end_time || null,
               duration: sessionObject.duration || null,
@@ -376,6 +377,8 @@ const CreateSession: React.FC = () => {
             if (createdInterruptsTrimmed && createdInterruptsTrimmed.length > 0) {
               msg.session_interrupts = createdInterruptsTrimmed;
             }
+            // include participant id of the creator so the background can call backend removal on quit
+            try { msg.participant_id = userId; } catch (e) { /* ignore */ }
             runtime.sendMessage(msg, (resp: any) => {
               console.log('SESSION_STARTED message sent to extension background', resp);
             });
