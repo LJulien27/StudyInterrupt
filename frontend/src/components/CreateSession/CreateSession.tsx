@@ -463,9 +463,6 @@ const CreateSession: React.FC = () => {
           break;
       }
     });
-
-    setIsPublic(true);
-    setPublicLink(generateShareLink(contest.data._id));
         // register a local handler to forward messages into component state
         wsHandlerUnsub.current = registerHandler((msg: any) => {
           switch (msg.type) {

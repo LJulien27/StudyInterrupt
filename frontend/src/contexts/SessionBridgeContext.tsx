@@ -11,6 +11,7 @@ interface SessionBridgeContextValue {
   session: any | null;
   quizzes: any[] | null;
   interrupts: any[] | null;
+  currentContestId: string | null;
   connect: (contestId: string, username: string, userId: string) => void;
   disconnect: () => void;
   send: (msg: any) => void;
@@ -347,6 +348,7 @@ export const SessionBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     session,
     quizzes,
     interrupts,
+    currentContestId,
     connect,
     disconnect,
     send,
