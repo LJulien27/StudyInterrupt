@@ -37,6 +37,11 @@ const STORAGE_KEYS = {
     ,
     // stored interrupt payloads for this session (array)
     INTERRUPTS: 'si_session_interrupts'
+    ,
+    // public contest id (if session was made public)
+    CONTEST: 'si_public_contest_id',
+    // participant id for this extension instance (if provided by the web app)
+    PARTICIPANT: 'si_participant_id'
 };
 
 function scheduleInterrupts(intervalMinutes) {
@@ -233,6 +238,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         }
                     }
 
+                    // If caller provided contest_id or participant_id, persist them so the background
+                    // can call backend endpoints (e.g., to remove a participant on quit).
+                    try {
+                        const maybeContest = msg && (msg.contest_id || msg.contestId || msg.contest);
+                        const maybeParticipant = msg && (msg.participant_id || msg.participantId || msg.participant);
+                        const extra = {};
+                        if (maybeContest) extra[STORAGE_KEYS.CONTEST] = maybeContest;
+                        if (maybeParticipant) extra[STORAGE_KEYS.PARTICIPANT] = maybeParticipant;
+                        if (Object.keys(extra).length > 0) {
+                            chrome.storage.local.set(extra, () => {
+                                console.log('Stored contest/participant info in background storage', extra);
+                            });
+                        }
+                    } catch (e) { /* ignore */ }
+
                     sendResponse({ ok: true, deduped: false });
                 });
             } catch (e) {
@@ -266,6 +286,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'SESSION_STOPPED': {
             // centralize stop logic
             try {
+                // Attempt to remove participant from backend contest if we have contest & participant ids
+                try {
+                    chrome.storage.local.get([STORAGE_KEYS.CONTEST, STORAGE_KEYS.PARTICIPANT], (items) => {
+                        try {
+                            const contestId = items && items[STORAGE_KEYS.CONTEST];
+                            const participantId = items && items[STORAGE_KEYS.PARTICIPANT];
+                            if (contestId && participantId) {
+                                // Best-effort DELETE request to remove participant
+                                try {
+                                    fetch(`https://studyinterruptbackend.onrender.com/contests/${encodeURIComponent(contestId)}/remove-user/${encodeURIComponent(participantId)}`, { method: 'DELETE' })
+                                        .then((resp) => console.log('remove-user response', resp && resp.status))
+                                        .catch((err) => console.warn('Failed to call remove-user', err));
+                                } catch (e) { /* ignore */ }
+                            }
+                        } catch (e) { /* ignore */ }
+                    });
+                } catch (e) { /* ignore */ }
+
                 stopSession('explicit STOP message');
                 sendResponse({ ok: true });
             } catch (e) {

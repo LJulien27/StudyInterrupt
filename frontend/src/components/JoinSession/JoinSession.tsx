@@ -134,9 +134,11 @@ const handleJoinSession = async () => {
               const message: any = {
                 type: 'SESSION_STARTED',
                 sessionId,
+                contest_id: msg.payload && msg.payload.contest_id ? msg.payload.contest_id : null,
                 interrupt_interval_minutes: interval,
                 end_time,
                 start_time,
+                participant_id: userId,
               };
 
               if (Array.isArray(msg.payload.interrupts) && msg.payload.interrupts.length > 0) {

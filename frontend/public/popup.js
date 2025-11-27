@@ -658,9 +658,11 @@ document.addEventListener("DOMContentLoaded", () => {
           status.textContent = 'Quitting session…';
 
           const finishLocal = (msg) => {
-            try { localStorage.setItem('si_session_active', 'false'); } catch (_) {}
-            renderNoSessionView();
-            status.textContent = msg || 'Session stopped (local)';
+          try { localStorage.setItem('si_session_active', 'false'); } catch (_) {}
+          // stop the active countdown timer if running
+          try { if (activeTimerId) { clearInterval(activeTimerId); activeTimerId = null; } } catch (e) { /* ignore */ }
+          renderNoSessionView();
+          status.textContent = msg || 'Session stopped (local)';
           };
 
           if (hasChrome && chrome.runtime && chrome.runtime.sendMessage) {
@@ -674,7 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     try { chrome.storage.local.set({ si_session_active: false, si_session_id: null, si_session_interrupts: null, si_interrupt_pending: false, si_current_interrupt_now: null }, () => {}); } catch (e) {}
                   }
                 } catch (e) {}
-                try { renderNoSessionView(); } catch (e) { console.warn('Failed to render no-session view immediately', e); }
+                try { finishLocal(); } catch (e) { console.warn('Failed to finish local stop immediately', e); }
                 // no need to re-enable button because view hides it
               });
             } catch (e) {
