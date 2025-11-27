@@ -297,6 +297,7 @@ const CreateSession: React.FC = () => {
           creator_id: userId,
           session_id: null,
           quiz_id: it.type === 'quiz' ? (it as any).quizId : null,
+          title: it.type === 'quiz' ? (it as any).title : null,
         };
 
         try {

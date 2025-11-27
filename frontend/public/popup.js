@@ -482,12 +482,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!Array.isArray(interrupts) || interrupts.length === 0) return;
       const idx = Number(index) || 0;
       const interrupt = interrupts[idx % interrupts.length];
+      console.log("interrupt loaded: " + interrupt)
       if (!interrupt) return;
 
   // expose to global handler so Accept button can act on it
   currentPendingInterrupt = interrupt;
 
   const isQuiz = Number(interrupt.type) === 1 || Boolean(interrupt.quiz_id || interrupt.quizId);
+  console.log("is a Quiz: " + isQuiz)
   if (!isQuiz) {
         // Render a simplified link preview for non-quiz interrupts. Accept will open the link.
         const title = interrupt.title || 'Link';
