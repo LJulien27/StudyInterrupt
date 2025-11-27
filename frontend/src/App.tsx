@@ -36,9 +36,6 @@ const App: React.FC = () => {
               {/* Navigation links for different pages */}
               <Nav.Link as={Link} to="/">Quizzes</Nav.Link>
               <Nav.Link as={Link} to="/create-quiz">Create A Quiz</Nav.Link>
-              <Nav.Link as={Link} to="/user-form">Parameters</Nav.Link>
-              <Nav.Link as={Link} to="/my-sessions">Sessions</Nav.Link>
-              <Nav.Link as={Link} to="/my-quiz-content">Generated Content</Nav.Link>
               {/* New button to start a session */}
               <Nav.Link as={Link} to="/create-session" style={{ fontWeight: 'bold', color: '#0d6efd' }}>Start a Session</Nav.Link>
               <Nav.Link as={Link} to="/join-session">Join session</Nav.Link>
