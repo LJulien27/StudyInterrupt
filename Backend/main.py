@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 import datetime
 
 import crud
-from crud import *
+from models import User, Session, Contest, Quizz, Interrupt, Question, Username
 
 from init_db import init_db
 
@@ -195,14 +195,14 @@ contests: Dict[str, ActiveContest] = {}
 @app.post("/sessions", status_code=201)
 async def add_user_session(session: Session):
     # add a check here to see if it's a public session or not
-    session = create_user_session(session)
+    session = crud.create_user_session(session)
     print(session)
     # Always backfill interrupt.session_id for interrupts referenced by this session.
     # This ensures private sessions' interrupts are linked to the session in the DB.
     try:
         interrupts = []
         for interrupt_id in session.get('interrupt_ids') or []:
-            interrupt = get_interrupt_by_id(interrupt_id)
+            interrupt = crud.get_interrupt_by_id(interrupt_id)
             # interrupt returned from helper has '_id' as a string
             interrupt["session_id"] = session['_id']
             interrupt_obj = Interrupt(**interrupt)  # convert dict to model
@@ -252,7 +252,7 @@ async def add_user_session(session: Session):
 
        quizzes = []
        for quiz_id in session['quizz_ids']:
-           quiz = await get_quiz_by_id(quiz_id)
+           quiz = crud.get_quiz_by_id(quiz_id)
            quiz["session_id"] = session['_id']
            quiz_obj = Quizz(**quiz)  # ✅ convert dict into a Pydantic model
            crud.update_quiz(quiz['_id'], quiz_obj)
@@ -295,7 +295,7 @@ async def add_user_session(session: Session):
 async def add_user_contest(contest: Contest):
     print("Received contest:", contest)
     print("As dict:", contest.dict())  # more readable
-    created_contest = create_contest(contest)
+    created_contest = crud.create_contest(contest)
     print("created contest:", created_contest)
     contests[created_contest["_id"]] = ActiveContest(created_contest["_id"])
     #create_room(created_contest)
@@ -421,7 +421,7 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
 # Create a new quiz
 @app.post("/quizzes", status_code=201)
 async def add_user_quiz(quiz: Quizz):
-    return create_quiz(quiz)
+    return crud.create_quiz(quiz)
 
 
 # Background cleanup task: periodically remove contests past their end_time
@@ -471,44 +471,44 @@ async def start_background_tasks():
 # Create a new interrupt
 @app.post("/interrupts", status_code=201)
 async def add_session_interrupt(interrupt: Interrupt):
-    return create_interrupt(interrupt)
+    return crud.create_interrupt(interrupt)
 
 # Create a new quiz question
 @app.post("/questions", status_code=201)
 async def add_quiz_question(question: Question):
-    return create_question(question)
+    return crud.create_question(question)
 
 # PUT methods for updating existing resources
 
 # Update an existing user
 @app.put("/users/{id}", status_code=200)
 async def edit_user(id: str, user: User):
-    return update_user(id, user)
+    return crud.update_user(id, user)
 
 # Update an existing session
 @app.put("/sessions/{id}", status_code=200)
 async def edit_user_session(id: str, session: Session):
-    return update_user_session(id, session)
+    return crud.update_user_session(id, session)
 
 # Update an existing contest
 @app.put("/contests/{id}", status_code=200)
 async def edit_contest(id: str, contest: Contest):
-    return update_contest(id, contest)
+    return crud.update_contest(id, contest)
 
 # Update an existing quiz
 @app.put("/quizzes/{id}", status_code=200)
 async def edit_quiz(id: str, quiz: Quizz):
-    return update_quiz(id, quiz)
+    return crud.update_quiz(id, quiz)
 
 # Update an existing interrupt
 @app.put("/interrupts/{id}", status_code=200)
 async def edit_interrupt(id: str, interrupt: Interrupt):
-    return update_interrupt(id, interrupt)
+    return crud.update_interrupt(id, interrupt)
 
 # Update an existing quiz question
 @app.put("/questions/{id}", status_code=200)
 async def edit_question(id: str, question: Question):
-    return update_question(id, question)
+    return crud.update_question(id, question)
 
 
 # PATCH methods for partial updates
@@ -516,76 +516,76 @@ async def edit_question(id: str, question: Question):
 # Add users to an existing contest
 @app.patch("/contests/{id}/add-users", status_code=200)
 async def patch_add_users_to_contest(id: str, users: list[Username]):
-    return add_users_to_contest(id, users)
+    return crud.add_users_to_contest(id, users)
 
 # Add users to an existing session
 @app.patch("/sessions/{id}/add-users", status_code=200)
 async def patch_add_users_to_session(id: str, users: list[Username]):
-    return add_users_to_session(id, users)
+    return crud.add_users_to_session(id, users)
 
 # Link a quiz to a specific session
 @app.patch("/sessions/{id}/add-quiz/{quiz_id}", status_code=200)
 async def patch_add_quiz_to_session(id: str, quiz_id: str):
-    return add_quiz_to_session(id, quiz_id)
+    return crud.add_quiz_to_session(id, quiz_id)
 
 # Link an interrupt to a specific session
 @app.patch("/sessions/{session_id}/add-interrupt/{interrupt_id}", status_code=200)
 async def patch_add_interrupt(session_id: str, interrupt_id: str):
-    return add_interrupt_to_session(session_id, interrupt_id)
+    return crud.add_interrupt_to_session(session_id, interrupt_id)
 
 # DELETE methods for removing resources
 
 # Remove a user from a contest
 @app.delete("/contests/{contest_id}/remove-user/{user_id}", status_code=200)
 async def delete_users_from_contest(contest_id: str, user_id: str):
-    return remove_user_from_contest(contest_id, user_id)
+    return crud.remove_user_from_contest(contest_id, user_id)
 
 # Remove a user from a session
 @app.delete("/sessions/{session_id}/remove-user/{user_id}", status_code=200)
 async def delete_users_from_session(session_id: str, user_id: str):
-    return remove_user_from_session(session_id, user_id)
+    return crud.remove_user_from_session(session_id, user_id)
 
 # Unlink a quiz from a session
 @app.delete("/sessions/{session_id}/remove-quiz/{quiz_id}", status_code=200)
 async def delete_quiz_from_session(session_id: str, quiz_id: str):
-    return remove_quiz_from_session(session_id, quiz_id)
+    return crud.remove_quiz_from_session(session_id, quiz_id)
 
 # Unlink an interrupt from a session
 @app.delete("/sessions/{session_id}/remove-interrupt/{interrupt_id}", status_code=200)
 async def delete_remove_interrupt(session_id: str, interrupt_id: str):
-    return remove_interrupt_from_session(session_id, interrupt_id)
+    return crud.remove_interrupt_from_session(session_id, interrupt_id)
 
 # Delete individual resources
 
 # Delete a user by ID
 @app.delete("/users/{user_id}", status_code=200)
 async def delete_user_route(user_id: str):
-    return delete_user(user_id)
+    return crud.delete_user(user_id)
 
 # Delete a session by ID
 @app.delete("/sessions/{session_id}", status_code=200)
 async def delete_session_route(session_id: str):
-    return delete_session(session_id)
+    return crud.delete_session(session_id)
 
 # Delete a contest by ID
 @app.delete("/contests/{contest_id}", status_code=200)
 async def delete_contest_route(contest_id: str):
-    return delete_contest(contest_id)
+    return crud.delete_contest(contest_id)
 
 # Delete a quiz by ID
 @app.delete("/quizzes/{quiz_id}", status_code=200)
 async def delete_quiz_route(quiz_id: str):
-    return delete_quiz(quiz_id)
+    return crud.delete_quiz(quiz_id)
 
 # Delete a question by ID
 @app.delete("/questions/{question_id}", status_code=200)
 async def delete_question_route(question_id: str):
-    return delete_question(question_id)
+    return crud.delete_question(question_id)
 
 # Delete an interrupt by ID
 @app.delete("/interrupts/{interrupt_id}", status_code=200)
 async def delete_interrupt_route(interrupt_id: str):
-    return delete_interrupt(interrupt_id)
+    return crud.delete_interrupt(interrupt_id)
 
 #at line 118 we create the contest
 #line 383 in crud
