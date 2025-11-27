@@ -13,6 +13,8 @@ import CreateSession from './components/CreateSession/CreateSession';
 import JoinSession from './components/JoinSession/JoinSession';
 import Sidebar from './components/Sidebar/Sidebar';
 import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
+import { SessionQuizProvider, useSessionQuiz } from './contexts/SessionQuizContext';
+import { useEffect } from 'react';
 
 const SidebarContainer: React.FC = () => {
   const { connected } = useWebSocket();
@@ -21,8 +23,45 @@ const SidebarContainer: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // Component mounted inside providers to autopickup pending interrupt markers written by the extension popup.
+  const SessionQuizAutoOpen: React.FC = () => {
+    const { openQuiz } = useSessionQuiz();
+    useEffect(() => {
+      try {
+        // Prefer chrome.storage when available (extension context)
+        if ((window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.get === 'function') {
+          try {
+            (window as any).chrome.storage.local.get(['si_interrupt_pending', 'si_pending_interrupt_quizId', 'si_pending_interrupt_id'], (items: any) => {
+              try {
+                const pending = items && (items.si_interrupt_pending === true || items.si_interrupt_pending === 'true');
+                if (pending) {
+                  const quizId = (items && items.si_pending_interrupt_quizId) || null;
+                  const interruptId = (items && items.si_pending_interrupt_id) || null;
+                  if (quizId) openQuiz(quizId, interruptId || null, null);
+                }
+              } catch (e) { /* ignore */ }
+            });
+          } catch (e) { /* ignore */ }
+        } else {
+          const pending = localStorage.getItem('si_interrupt_pending') === 'true';
+          if (pending) {
+            const quizId = localStorage.getItem('si_pending_interrupt_quizId') || null;
+            const interruptId = localStorage.getItem('si_pending_interrupt_id') || null;
+            if (quizId) {
+              // call openQuiz to navigate into the app and mark pending in-memory
+              openQuiz(quizId, interruptId || null, null);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, [openQuiz]);
+    return null;
+  };
   return (
     <WebSocketProvider>
+    <SessionQuizProvider>
     <Router>
       {/* Navigation bar for various links in the web app */}
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
@@ -47,10 +86,13 @@ const App: React.FC = () => {
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <main style={{ flex: 1 }}>
           <Container>
+            {/* Auto-open quiz if popup set a pending interrupt before this tab launched */}
+            <SessionQuizAutoOpen />
             {/* Routing configuration: maps paths to their respective components */}
             <Routes>
           {/* Route for the Quiz page */}
           <Route path="/" element={<Quiz />} />
+          <Route path="/quiz" element={<Quiz />} />
           {/* Route for the Quiz creation page */}
           <Route path="/create-quiz" element={<QuizCreate />} />
           {/* Route for the User Form page */}
@@ -72,6 +114,7 @@ const App: React.FC = () => {
   <SidebarContainer />
       </div>
     </Router>
+    </SessionQuizProvider>
     </WebSocketProvider>
   );
 };

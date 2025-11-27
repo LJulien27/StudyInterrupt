@@ -17,7 +17,7 @@
     },
     "web_accessible_resources": [
         {
-            "resources": ["build/index.html", "build/static/js/*.js", "build/static/css/*.css"],
+            "resources": ["build/index.html", "build/static/js/*.js", "build/static/css/*.css", "public/quiz-redirect.html", "public/quiz-redirect.js"],
             "matches": ["<all_urls>"]
         }
     ]

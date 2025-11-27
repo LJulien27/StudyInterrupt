@@ -422,6 +422,23 @@ const CreateSession: React.FC = () => {
     setContestId(contest.data._id)
     console.log(contestId)
     // connect via WebSocket context
+    // Persist contest id so the app can auto-reconnect on reopen
+    try {
+      const cid = contest.data._id;
+      const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.set === 'function';
+      if (hasChromeStorage) {
+        try {
+          (window as any).chrome.storage.local.set({ si_public_contest_id: cid }, () => { /* no-op */ });
+        } catch (e) {
+          try { localStorage.setItem('si_public_contest_id', String(cid)); } catch (e2) { /* ignore */ }
+        }
+      } else {
+        try { localStorage.setItem('si_public_contest_id', String(cid)); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      console.warn('Failed to persist public contest id', e);
+    }
+
     connect(contest.data._id, user.username, user._id);
     // register a local handler to forward messages into component state
     wsHandlerUnsub.current = registerHandler((msg: any) => {

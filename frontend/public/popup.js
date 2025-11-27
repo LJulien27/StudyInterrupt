@@ -204,17 +204,48 @@ document.addEventListener("DOMContentLoaded", () => {
           if (isQuiz) {
             const quizId = it.quiz_id || it.quizId || it._id || '';
             const interruptId = it._id || it.id || it.interrupt_id || '';
-            const rel = `#/quiz?quizId=${encodeURIComponent(quizId)}&interruptId=${encodeURIComponent(interruptId)}`;
             try {
-              if (hasChrome && chrome.runtime && chrome.runtime.getURL && chrome.tabs && chrome.tabs.create) {
-                const url = chrome.runtime.getURL('build/index.html') + rel;
-                chrome.tabs.create({ url }, (tab) => {
-                  console.log('Opened quiz tab', tab && tab.id);
-                });
-              } else {
-                const url = 'index.html' + rel;
-                window.open(url, '_blank');
-              }
+              // Persist a minimal pending-interrupt marker so the web app (React) can detect and open the quiz reliably.
+              const persistAndOpen = () => {
+                try {
+                  const openRedirect = () => {
+                    try {
+                      const redirectUrl = (hasChrome && chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL('public/quiz-redirect.html') + `?quizId=${encodeURIComponent(quizId)}&interruptId=${encodeURIComponent(interruptId)}` : `quiz-redirect.html?quizId=${encodeURIComponent(quizId)}&interruptId=${encodeURIComponent(interruptId)}`;
+                      if (hasChrome && chrome.tabs && chrome.tabs.create) {
+                        chrome.tabs.create({ url: redirectUrl }, (tab) => { console.log('Opened quiz redirect tab', tab && tab.id); });
+                      } else {
+                        window.open(redirectUrl, '_blank');
+                      }
+                    } catch (e) { console.warn('Failed to open quiz redirect tab', e); }
+                  };
+
+                  if (hasChrome && chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+                    try {
+                      chrome.storage.local.set({ si_interrupt_pending: true, si_pending_interrupt_quizId: String(quizId), si_pending_interrupt_id: String(interruptId) }, () => {
+                        openRedirect();
+                      });
+                      return;
+                    } catch (e) { console.warn('Failed to write pending interrupt to chrome.storage', e); }
+                  }
+                } catch (e) { /* ignore */ }
+
+                // Fallback: mirror to localStorage and open the redirect page
+                try {
+                  try { localStorage.setItem('si_interrupt_pending', 'true'); } catch (e) {}
+                  try { localStorage.setItem('si_pending_interrupt_quizId', String(quizId)); } catch (e) {}
+                  try { localStorage.setItem('si_pending_interrupt_id', String(interruptId)); } catch (e) {}
+                } catch (e) { /* ignore */ }
+                try {
+                  const redirectUrl = `quiz-redirect.html?quizId=${encodeURIComponent(quizId)}&interruptId=${encodeURIComponent(interruptId)}`;
+                  if (hasChrome && chrome.tabs && chrome.tabs.create) {
+                    chrome.tabs.create({ url: redirectUrl }, (tab) => { console.log('Opened quiz redirect tab (fallback)', tab && tab.id); });
+                  } else {
+                    window.open(redirectUrl, '_blank');
+                  }
+                } catch (e) { console.warn('Failed to open quiz redirect tab (fallback)', e); }
+              };
+
+              persistAndOpen();
             } catch (e) {
               console.warn('Failed to open quiz tab', e);
             }
@@ -279,12 +310,17 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           console.log('ACCEPT_INTERRUPT (simulated)');
         }
-        // Clear pending flag and any current interrupt marker in storage so popup will return to active view
+        // If running as an extension, the background will clear the pending flag when it processes ACCEPT_INTERRUPT.
+        // For non-extension environments (fallback), clear the localStorage marker after a short delay so a newly-opened tab can read it.
         try {
-          if (hasChrome && chrome.storage && chrome.storage.local && chrome.storage.local.set) {
-            try { chrome.storage.local.set({ si_interrupt_pending: false, si_current_interrupt_now: null }); } catch (e) {}
-          } else {
-            try { localStorage.setItem('si_interrupt_pending', 'false'); localStorage.removeItem('si_current_interrupt_now'); } catch (e) {}
+          if (!(hasChrome && chrome.runtime && chrome.runtime.sendMessage)) {
+            // fallback: clear localStorage after a brief delay to avoid racing the newly opened tab
+            setTimeout(() => {
+              try { localStorage.setItem('si_interrupt_pending', 'false'); } catch (e) {}
+              try { localStorage.removeItem('si_current_interrupt_now'); } catch (e) {}
+              try { localStorage.removeItem('si_pending_interrupt_quizId'); } catch (e) {}
+              try { localStorage.removeItem('si_pending_interrupt_id'); } catch (e) {}
+            }, 800);
           }
         } catch (e) { /* ignore */ }
       } catch (e) {
@@ -375,7 +411,9 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           // include the pending flag so we know whether Accept should be enabled
           chrome.storage.local.get(['si_session_active', 'si_session_interval', 'si_last_interrupt_at', 'si_next_due', 'si_session_end', 'si_interrupt_pending'], (items) => {
-            const active = items && items.si_session_active;
+            // Treat a session as active only when the stored value is the boolean true.
+            // This prevents string values like 'true' (from localStorage or older code) from being treated as active.
+            const active = items && items.si_session_active === true;
             const interval = (items && Number(items.si_session_interval)) || 15;
             const last = items && Number(items.si_last_interrupt_at);
             const nextStored = items && Number(items.si_next_due);
@@ -629,7 +667,14 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
               chrome.runtime.sendMessage({ type: 'SESSION_STOPPED' }, (resp) => {
                 console.log('SESSION_STOPPED response', resp);
-                // UI updated by renderNoSessionView
+                // Best-effort: immediately update popup UI so it doesn't linger
+                try {
+                  // attempt to clear session flags in storage so other listeners also pick it up
+                  if (chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+                    try { chrome.storage.local.set({ si_session_active: false, si_session_id: null, si_session_interrupts: null, si_interrupt_pending: false, si_current_interrupt_now: null }, () => {}); } catch (e) {}
+                  }
+                } catch (e) {}
+                try { renderNoSessionView(); } catch (e) { console.warn('Failed to render no-session view immediately', e); }
                 // no need to re-enable button because view hides it
               });
             } catch (e) {
@@ -678,6 +723,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   tryAuth();
   checkSessionState();
+  // Listen for storage changes so the popup updates if background clears or updates session state
+  try {
+    if (hasChrome && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        // If any session-related keys changed, re-check state
+        if (changes.si_session_active || changes.si_session_id || changes.si_session_interrupts || changes.si_interrupt_pending || changes.si_current_interrupt_now) {
+          try { checkSessionState(); } catch (e) { try { renderNoSessionView(); } catch (e2) {} }
+        }
+      });
+    }
+  } catch (e) {
+    // ignore
+  }
 });
 
 // NOTE: embedded player removed — YouTube interrupts are treated as regular links and opened in a new tab.

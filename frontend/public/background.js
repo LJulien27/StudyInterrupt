@@ -278,9 +278,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'ACCEPT_INTERRUPT': {
             // Clear pending flag when user accepts the interrupt
             try {
-                chrome.storage.local.set({ [STORAGE_KEYS.PENDING]: false }, () => {
-                    console.log('Cleared interrupt pending flag (accepted)');
-                });
+                    // Clear pending flag and any pending-interrupt markers written by the popup
+                    chrome.storage.local.set({ [STORAGE_KEYS.PENDING]: false, si_pending_interrupt_quizId: null, si_pending_interrupt_id: null }, () => {
+                        console.log('Cleared interrupt pending flag (accepted) and pending-interrupt markers');
+                    });
                 sendResponse({ ok: true });
             } catch (e) {
                 console.warn('Failed to clear pending flag on ACCEPT_INTERRUPT', e);
@@ -389,7 +390,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 function restoreSessionFromStorage() {
     try {
         chrome.storage.local.get([STORAGE_KEYS.ACTIVE, STORAGE_KEYS.INTERVAL, STORAGE_KEYS.ID, STORAGE_KEYS.END], (items) => {
-            if (items && items[STORAGE_KEYS.ACTIVE]) {
+            // Only treat the session as active if the stored value is the boolean true.
+            // This avoids mistakenly restoring sessions when a string 'true' is present in storage.
+            if (items && items[STORAGE_KEYS.ACTIVE] === true) {
                 const endTs = items && Number(items[STORAGE_KEYS.END]);
                 const now = Date.now();
                 if (Number.isFinite(endTs) && endTs > 0 && now >= endTs) {

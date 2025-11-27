@@ -108,7 +108,7 @@ const Quiz: React.FC = () => {
     }
   }, [Quizes]);
 
-  const { send, players: ctxPlayers } = useWebSocket();
+  const { send, players: ctxPlayers, connected } = useWebSocket();
 
   const handleQuizSelect = async (quiz: Quiz) => {
     if (deleteMode) {
@@ -220,18 +220,30 @@ const Quiz: React.FC = () => {
                 currentScore = 0;
               }
               const newScore = currentScore + pointsScore;
-              // Broadcast a score_update so the server will forward to other participants
+              // Broadcast a score_update so the server will forward to other participants.
+              // Include both the delta (points earned) and the new total to be robust.
               const scoreMsg = {
                 type: 'score_update',
                 payload: {
                   username: (user as any)?.username,
                   user_id: userId,
+                  delta: pointsScore,
                   score: newScore,
                   interrupt_id: pendingInterruptId,
                   submitted_at: new Date().toISOString(),
                 }
               };
-              const sent = (send as any)(scoreMsg);
+              // Only attempt to send if WebSocket connection is active
+              let sent = false;
+              try {
+                if (connected) {
+                  sent = (send as any)(scoreMsg);
+                } else {
+                  sent = false;
+                }
+              } catch (e) {
+                sent = false;
+              }
               if (sent) console.log('Sent interrupt score update via WebSocket context:', scoreMsg);
               else console.log('No active WebSocket found via context; will save submission locally');
             } catch (e) {
