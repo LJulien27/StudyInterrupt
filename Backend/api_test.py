@@ -7,6 +7,7 @@ from unittest.mock import patch
 import mongomock
 from pymongo.errors import PyMongoError
 
+import main as main_module
 from main import app  # Import your FastAPI app
 import crud
 from models import User
@@ -59,13 +60,17 @@ def mock_db():
 # Patch MongoDB connection in CRUD functions
 @pytest.fixture(autouse=True)
 def patch_db(mock_db):
+    # Patch CRUD collections
     with patch.object(crud, "users_collection", mock_db.users):
         with patch.object(crud, "sessions_collection", mock_db.sessions):
             with patch.object(crud, "contests_collection", mock_db.contests):
                 with patch.object(crud, "quizzes_collection", mock_db.quizzes):
                     with patch.object(crud, "interrupts_collection", mock_db.interrupts):
                         with patch.object(crud, "questions_collection", mock_db.questions):
-                            yield
+                            # Also patch collections imported directly by main (contests and contest_events)
+                            with patch.object(main_module, "contests_collection", mock_db.contests):
+                                with patch.object(main_module, "contest_events_collection", mock_db.contest_events):
+                                    yield
 
 # Sample valid and invalid IDs
 VALID_USER_ID = "65b8ba98a6c4a46585522b55"
@@ -493,6 +498,75 @@ def test_create_interrupt_success(mock_db):
     assert data["creator_id"] == VALID_USER_ID
     assert "session_id" in data
     assert data["session_id"] == VALID_SESSION_ID
+
+def test_join_contest_creates_event(mock_db):
+    # Join contest as a new user
+    new_user = {"id": "user-new-1", "username": "Bob"}
+    response = client.post(f"/contests/{VALID_CONTEST_ID}/join", json=new_user)
+    assert response.status_code == 200
+    assert response.json() == {"message": "joined"}
+
+    # Ensure event was created in contest_events
+    ev = mock_db.contest_events.find_one({"contest_id": VALID_CONTEST_ID, "type": "user_joined"})
+    assert ev is not None
+    assert ev["payload"]["user"]["id"] == "user-new-1"
+
+
+def test_submit_score_increments_and_creates_event(mock_db):
+    # Submit a score delta for existing user
+    body = {"user_id": VALID_USER_ID, "username": "Andre", "delta": 2}
+    response = client.post(f"/contests/{VALID_CONTEST_ID}/submit", json=body)
+    assert response.status_code == 200
+    data = response.json()
+    assert "players" in data
+    # find the player
+    player = next((p for p in data["players"] if p["id"] == VALID_USER_ID), None)
+    assert player is not None
+    assert player["score"] == 2
+
+    # Confirm event recorded
+    ev = mock_db.contest_events.find_one({"contest_id": VALID_CONTEST_ID, "type": "score_update"})
+    assert ev is not None
+    assert ev["payload"]["user_id"] == VALID_USER_ID
+
+
+def test_get_events_after_submit(mock_db):
+    # perform a submit then query events
+    body = {"user_id": VALID_USER_ID, "username": "Andre", "delta": 1}
+    resp = client.post(f"/contests/{VALID_CONTEST_ID}/submit", json=body)
+    assert resp.status_code == 200
+
+    events_resp = client.get(f"/contests/{VALID_CONTEST_ID}/events")
+    assert events_resp.status_code == 200
+    payload = events_resp.json()
+    assert "events" in payload
+    assert any(e.get("type") == "score_update" for e in payload["events"]), "expected score_update event"
+
+
+def test_register_webhook_and_persist(mock_db):
+    reg = {"url": "https://example.test/hook", "secret": "shhh"}
+    resp = client.post(f"/contests/{VALID_CONTEST_ID}/webhooks", json=reg)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "webhook" in data
+    hook = data["webhook"]
+    assert hook["url"] == reg["url"]
+
+    # Ensure contest doc now contains the webhook entry
+    contest_doc = mock_db.contests.find_one({"_id": ObjectId(VALID_CONTEST_ID)})
+    assert contest_doc is not None
+    hooks = contest_doc.get("webhooks") or []
+    assert any(h.get("url") == reg["url"] for h in hooks)
+
+
+def test_get_scores_returns_players_list(mock_db):
+    resp = client.get(f"/contests/{VALID_CONTEST_ID}/scores")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "players" in data
+    players = data["players"]
+    assert isinstance(players, list)
+    assert any(p.get("id") == VALID_USER_ID for p in players)
 
 def test_create_question_success(mock_db):
 

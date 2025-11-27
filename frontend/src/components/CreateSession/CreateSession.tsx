@@ -1,7 +1,7 @@
 // Importing necessary libraries and components
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useSessionBridge } from '../../contexts/SessionBridgeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, Form, FloatingLabel, Card, Container, InputGroup, Spinner } from 'react-bootstrap';
 import axios from 'axios';
@@ -52,8 +52,8 @@ const CreateSession: React.FC = () => {
   const [sessionId, setSessionId] = useState("");
   const [contestId, setContestId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const { connect, disconnect, registerHandler } = useWebSocket();
+  // no direct websocket ref here; SessionBridgeContext manages polling/join semantics
+  const { connect, disconnect, registerHandler } = useSessionBridge();
   const wsHandlerUnsub = useRef<(() => void) | null>(null);
 
   const [session, setSession] = useState("");
@@ -402,44 +402,45 @@ const CreateSession: React.FC = () => {
       showError('You must be logged in to make a session public.');
       return;
     }
-    const userId = (user as any)._id || user.id;
-    console.log(userId);
-    if (!isPublic) {
-      const userNameObject = {
-      id: userId,
-      username: user.username,
-
-
-    };
-
-    const contestObject = {
-      participants: [userNameObject]
-    };
-
-    console.log(contestObject)
-      
-    let contest = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
-    setContestId(contest.data._id)
-    console.log(contestId)
-    // connect via WebSocket context
-    // Persist contest id so the app can auto-reconnect on reopen
-    try {
-      const cid = contest.data._id;
-      const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.set === 'function';
-      if (hasChromeStorage) {
-        try {
-          (window as any).chrome.storage.local.set({ si_public_contest_id: cid }, () => { /* no-op */ });
-        } catch (e) {
-          try { localStorage.setItem('si_public_contest_id', String(cid)); } catch (e2) { /* ignore */ }
-        }
-      } else {
-        try { localStorage.setItem('si_public_contest_id', String(cid)); } catch (e) { /* ignore */ }
-      }
-    } catch (e) {
-      console.warn('Failed to persist public contest id', e);
+    const userId = (user as any)._id || (user as any).id;
+    if (!userId) {
+      showError('Could not determine your user id.');
+      return;
     }
 
-    connect(contest.data._id, user.username, user._id);
+    if (!isPublic) {
+      const userNameObject = {
+        id: userId,
+        username: user.username,
+      };
+
+      const contestObject = {
+        participants: [userNameObject],
+      };
+
+      try {
+        const contestResp = await axios.post('https://studyinterruptbackend.onrender.com/contests', contestObject);
+        const contest = contestResp.data;
+        const cid = contest && (contest._id || contest.id || contest.inserted_id || null);
+        if (!cid) {
+          showError('Failed to create public contest (no id returned).');
+          return;
+        }
+        setContestId(cid);
+        // Persist contest id so the app can auto-reconnect on reopen
+        try {
+          const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.set === 'function';
+          if (hasChromeStorage) {
+            try { (window as any).chrome.storage.local.set({ si_public_contest_id: cid }, () => {}); } catch (e) { localStorage.setItem('si_public_contest_id', String(cid)); }
+          } else {
+            try { localStorage.setItem('si_public_contest_id', String(cid)); } catch (e) { /* ignore */ }
+          }
+        } catch (e) {
+          console.warn('Failed to persist public contest id', e);
+        }
+
+        // Use the consistent userId when connecting
+        connect(cid, user.username, userId);
     // register a local handler to forward messages into component state
     wsHandlerUnsub.current = registerHandler((msg: any) => {
       switch (msg.type) {
@@ -462,9 +463,36 @@ const CreateSession: React.FC = () => {
           break;
       }
     });
+        // register a local handler to forward messages into component state
+        wsHandlerUnsub.current = registerHandler((msg: any) => {
+          switch (msg.type) {
+            case 'game_start':
+              setSession(msg.payload.session);
+              setQuizzes(msg.payload.quizzes);
+              setInterrupts(msg.payload.interrupts);
+              setPlayers(msg.payload.players || []);
+              break;
+            case 'score_update':
+              setPlayers((prevPlayers) => prevPlayers.map((p) => (p.username === msg.payload.username ? { ...p, score: msg.payload.score } : p)));
+              break;
+            case 'game_over':
+              setGameOver(true);
+              break;
+            case 'user_joined':
+              setPlayers((prevPlayers) => (prevPlayers.some((p) => p.username === msg.payload.username) ? prevPlayers : [...prevPlayers, { username: msg.payload.username, id: msg.payload.id, score: msg.payload.score }]));
+              break;
+            default:
+              break;
+          }
+        });
 
-    setIsPublic(true);
-    setPublicLink(generateShareLink(contest.data._id));
+        setIsPublic(true);
+        setPublicLink(generateShareLink(cid));
+      } catch (err: any) {
+        console.error('Failed to create contest', err);
+        showError(`Failed to create public contest: ${err?.message || String(err)}`);
+        return;
+      }
     } else {
       setIsPublic(false);
       setPublicLink(null);

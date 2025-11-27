@@ -12,12 +12,12 @@ import NotFound from './components/NotFound/NotFound';
 import CreateSession from './components/CreateSession/CreateSession';
 import JoinSession from './components/JoinSession/JoinSession';
 import Sidebar from './components/Sidebar/Sidebar';
-import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
+import { SessionBridgeProvider, useSessionBridge } from './contexts/SessionBridgeContext';
 import { SessionQuizProvider, useSessionQuiz } from './contexts/SessionQuizContext';
 import { useEffect } from 'react';
 
 const SidebarContainer: React.FC = () => {
-  const { connected } = useWebSocket();
+  const { connected } = useSessionBridge();
   if (!connected) return null;
   return <Sidebar />;
 };
@@ -60,7 +60,7 @@ const App: React.FC = () => {
     return null;
   };
   return (
-    <WebSocketProvider>
+  <SessionBridgeProvider>
     <SessionQuizProvider>
     <Router>
       {/* Navigation bar for various links in the web app */}
@@ -114,8 +114,8 @@ const App: React.FC = () => {
   <SidebarContainer />
       </div>
     </Router>
-    </SessionQuizProvider>
-    </WebSocketProvider>
+  </SessionQuizProvider>
+  </SessionBridgeProvider>
   );
 };
 

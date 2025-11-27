@@ -4,7 +4,7 @@ import Question, { QuestionType } from '../../types/Question';
 import axios from 'axios';
 import { Username } from '../../types/Sessions';
 import { useAuth } from '../../AuthContext';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useSessionBridge } from '../../contexts/SessionBridgeContext';
 
 interface Quiz {
   _id: string;
@@ -108,7 +108,7 @@ const Quiz: React.FC = () => {
     }
   }, [Quizes]);
 
-  const { send, players: ctxPlayers, connected } = useWebSocket();
+  const { send, players: ctxPlayers, connected } = useSessionBridge();
 
   const handleQuizSelect = async (quiz: Quiz) => {
     if (deleteMode) {

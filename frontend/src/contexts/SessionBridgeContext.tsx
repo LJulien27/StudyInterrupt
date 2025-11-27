@@ -5,28 +5,29 @@ type Player = { id?: string; username: string; score?: number };
 
 type WSMessageHandler = (msg: any) => void;
 
-interface WebSocketContextValue {
+interface SessionBridgeContextValue {
   connected: boolean;
   players: Player[];
   session: any | null;
   quizzes: any[] | null;
   interrupts: any[] | null;
+  currentContestId: string | null;
   connect: (contestId: string, username: string, userId: string) => void;
   disconnect: () => void;
   send: (msg: any) => void;
   registerHandler: (h: WSMessageHandler) => () => void;
 }
 
-const WebSocketContext = createContext<WebSocketContextValue | undefined>(undefined);
+const SessionBridgeContext = createContext<SessionBridgeContextValue | undefined>(undefined);
 
-export const useWebSocket = () => {
-  const ctx = useContext(WebSocketContext);
-  if (!ctx) throw new Error('useWebSocket must be used within WebSocketProvider');
+export const useSessionBridge = () => {
+  const ctx = useContext(SessionBridgeContext);
+  if (!ctx) throw new Error('useSessionBridge must be used within SessionBridgeProvider');
   return ctx;
 };
 
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const wsRef = useRef<WebSocket | null>(null);
+export const SessionBridgeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // No WebSocket: this provider uses HTTP endpoints (join/submit/events/scores)
   const handlersRef = useRef<Map<number, WSMessageHandler>>(new Map());
   const nextHandlerId = useRef(1);
 
@@ -35,10 +36,13 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [session, setSession] = useState<any | null>(null);
   const [quizzes, setQuizzes] = useState<any[] | null>(null);
   const [interrupts, setInterrupts] = useState<any[] | null>(null);
+  const [currentContestId, setCurrentContestId] = useState<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const lastEventTsRef = useRef<string | null>(null);
 
   const notifyHandlers = useCallback((msg: any) => {
     handlersRef.current.forEach((h) => {
-      try { h(msg); } catch (e) { console.warn('ws handler failed', e); }
+      try { h(msg); } catch (e) { console.warn('session handler failed', e); }
     });
   }, []);
 
@@ -93,74 +97,131 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e) { /* ignore */ }
   }, []);
 
-  const onMessage = useCallback((ev: MessageEvent) => {
-    let msg: any = null;
-    try { msg = JSON.parse(ev.data); } catch (e) { console.warn('Invalid ws message', e); return; }
-    // update local context state for known message types
-    switch (msg.type) {
-      case 'game_start':
-        setSession(msg.payload.session);
-        setQuizzes(msg.payload.quizzes);
-        setInterrupts(msg.payload.interrupts);
-        setPlayers(Array.isArray(msg.payload.players) ? msg.payload.players : []);
-        break;
-      case 'score_update':
-        setPlayers((prev) => prev.map(p => p.username === msg.payload.username ? { ...p, score: msg.payload.score } : p));
-        break;
-      case 'user_joined':
-        setPlayers((prev) => (prev.some(p => p.username === msg.payload.username) ? prev : [...prev, { username: msg.payload.username, id: msg.payload.id, score: msg.payload.score }]));
-        break;
-      case 'user_left':
-        setPlayers((prev) => prev.filter(p => p.username !== msg.payload.username));
-        break;
-      default:
-        break;
-    }
-    notifyHandlers(msg);
-  }, [notifyHandlers]);
+  // Messages are delivered via the HTTP /events poll; handlers are notified from the poll logic
 
   const connect = useCallback((contestId: string, username: string, userId: string) => {
+    // New HTTP-based connect: register participant and start polling events/scores
     try {
-      if (wsRef.current) {
-        // already connected or connecting
-        return;
+      if (connected && currentContestId === contestId) return;
+      // Persist public contest id so other tabs/extensions can see it
+      try {
+        const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.set === 'function';
+        if (hasChromeStorage) {
+          try { (window as any).chrome.storage.local.set({ si_public_contest_id: contestId }, () => {}); } catch (e) { localStorage.setItem('si_public_contest_id', contestId); }
+        } else {
+          localStorage.setItem('si_public_contest_id', contestId);
+        }
+      } catch (e) { /* ignore */ }
+
+      // call join endpoint (best-effort)
+      const payload = { id: userId, username };
+      axios.post(`https://studyinterruptbackend.onrender.com/contests/${contestId}/join`, payload).catch(() => { /* ignore join errors */ });
+
+      setCurrentContestId(contestId);
+      setConnected(true);
+
+      // fetch initial scores
+      axios.get(`https://studyinterruptbackend.onrender.com/contests/${contestId}/scores`).then(resp => {
+        if (resp && resp.data && Array.isArray(resp.data.players)) setPlayers(resp.data.players as Player[]);
+      }).catch(() => {});
+
+      // start polling events
+      if (pollTimerRef.current) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
       }
-      const url = `wss://studyinterruptbackend.onrender.com/ws/${contestId}/${encodeURIComponent(username)}/${encodeURIComponent(userId)}`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-      ws.onopen = () => { setConnected(true); };
-      ws.onmessage = onMessage as any;
-      ws.onclose = () => { setConnected(false); wsRef.current = null; };
-      ws.onerror = (e) => { console.warn('WebSocket error', e); };
+      lastEventTsRef.current = new Date().toISOString();
+      const poll = async () => {
+        try {
+          const since = lastEventTsRef.current;
+          const url = since ? `https://studyinterruptbackend.onrender.com/contests/${contestId}/events?since=${encodeURIComponent(since)}` : `https://studyinterruptbackend.onrender.com/contests/${contestId}/events`;
+          const resp = await axios.get(url);
+          if (resp && resp.data && Array.isArray(resp.data.events)) {
+            const evs = resp.data.events;
+            evs.forEach((ev: any) => {
+              // update lastEventTs
+              if (ev.created_at) lastEventTsRef.current = ev.created_at;
+              // normalize and dispatch
+              switch (ev.type) {
+                case 'score_update':
+                  if (ev.payload && Array.isArray(ev.payload.players)) {
+                    setPlayers(ev.payload.players);
+                  }
+                  break;
+                case 'user_joined':
+                  if (ev.payload && ev.payload.user) {
+                    setPlayers((prev) => (prev.some(p => p.id === ev.payload.user.id) ? prev : [...prev, { id: ev.payload.user.id, username: ev.payload.user.username, score: ev.payload.user.score || 0 }]));
+                  }
+                  break;
+                case 'user_left':
+                  if (ev.payload && ev.payload.user) {
+                    setPlayers((prev) => prev.filter(p => p.id !== ev.payload.user.id && p.username !== ev.payload.user.username));
+                  }
+                  break;
+                case 'game_start':
+                  try {
+                    const payload = ev.payload || {};
+                    setSession(payload.session || null);
+                    setQuizzes(payload.quizzes || null);
+                    setInterrupts(payload.interrupts || null);
+                    if (Array.isArray(payload.players)) setPlayers(payload.players);
+                  } catch (e) { }
+                  break;
+                case 'game_over':
+                  // mark disconnected
+                  setConnected(false);
+                  break;
+                default:
+                  break;
+              }
+              notifyHandlers(ev);
+            });
+          }
+        } catch (e) { /* ignore poll errors */ }
+      };
+      pollTimerRef.current = window.setInterval(poll, 2000);
+      // run first poll immediately
+      setTimeout(() => { poll(); }, 100);
     } catch (e) {
-      console.warn('Failed to connect websocket', e);
+      console.warn('Failed to connect via HTTP flow', e);
     }
-  }, [onMessage]);
+  }, [connected, currentContestId]);
 
   const disconnect = useCallback(() => {
     try {
-      const ws = wsRef.current;
-      if (ws) {
-        try { ws.close(1000); } catch (e) {}
+      // clear polling
+      if (pollTimerRef.current) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
       }
+      setCurrentContestId(null);
+      lastEventTsRef.current = null;
+      // remove persisted public contest id
+      try { (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && (window as any).chrome.storage.local.remove && (window as any).chrome.storage.local.remove(['si_public_contest_id']); } catch (e) { try { localStorage.removeItem('si_public_contest_id'); } catch (e2) {} }
     } finally {
-      wsRef.current = null;
       setConnected(false);
     }
   }, []);
 
   const send = useCallback((msg: any) => {
+    // HTTP-only submit: accept a score_update-like message and POST to submit endpoint
     try {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(msg));
+      if (!currentContestId) return false;
+      if (msg && msg.type === 'score_update' && msg.payload) {
+        const user_id = msg.payload.user_id || msg.payload.userId || (msg.payload.user && msg.payload.user.id) || null;
+        const username = msg.payload.username || (msg.payload.user && msg.payload.user.username) || null;
+        const delta = msg.payload.delta || msg.payload.points_earned || 0;
+        if (!user_id) return false;
+        // fire-and-forget; ignore response
+        axios.post(`https://studyinterruptbackend.onrender.com/contests/${currentContestId}/submit`, { user_id, username, delta }).catch(() => { /* ignore */ });
         return true;
       }
+      return false;
     } catch (e) {
-      console.warn('Failed to send ws message', e);
+      console.warn('Failed to send via HTTP submit', e);
+      return false;
     }
-    return false;
-  }, []);
+  }, [currentContestId]);
 
   const registerHandler = useCallback((h: WSMessageHandler) => {
     const id = nextHandlerId.current++;
@@ -175,8 +236,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const tryConnect = async (cid: any) => {
         try {
           if (!cid) return;
-          // if already connected or connecting, do nothing
-          if (wsRef.current || connected) return;
+          // if already connected, do nothing
+          if (connected) return;
           // attempt to fetch current scoreboard via HTTP endpoint so the UI can show leaderboard
           try {
             const resp = await axios.get(`https://studyinterruptbackend.onrender.com/contests/${String(cid)}/scores`);
@@ -238,7 +299,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             if (changes.si_public_contest_id) {
               const newCid = changes.si_public_contest_id.newValue;
               // if new contest id appears and we're not connected, attempt to connect
-              if (newCid && !wsRef.current && !connected) {
+              if (newCid && !connected) {
                 // attempt to read user from localStorage
                 let user = null;
                 try { const raw = localStorage.getItem('user'); if (raw) user = JSON.parse(raw); } catch (e) { user = null; }
@@ -268,7 +329,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 if (raw) user = JSON.parse(raw);
                 const username = (user && (user.name || user.username)) || null;
                 const userId = (user && (user._id || user.id)) || null;
-                if (username && userId && !wsRef.current && !connected) {
+                if (username && userId && !connected) {
                   connect(String(ev.newValue), String(username), String(userId));
                 }
               } catch (e) { /* ignore */ }
@@ -281,19 +342,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e) { /* ignore */ }
   }, [connect, connected]);
 
-  const value: WebSocketContextValue = {
+  const value: SessionBridgeContextValue = {
     connected,
     players,
     session,
     quizzes,
     interrupts,
+    currentContestId,
     connect,
     disconnect,
     send,
     registerHandler,
   };
 
-  return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>;
+  return <SessionBridgeContext.Provider value={value}>{children}</SessionBridgeContext.Provider>;
 };
 
-export default WebSocketContext;
+export default SessionBridgeContext;

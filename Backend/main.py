@@ -1,12 +1,12 @@
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 from fastapi.encoders import jsonable_encoder
 import datetime
 
@@ -14,6 +14,26 @@ import crud
 from models import User, Session, Contest, Quizz, Interrupt, Question, Username
 
 from init_db import init_db
+
+# New imports for DB-level operations and webhook delivery
+from database import contests_collection, contest_events_collection
+from bson import ObjectId
+import httpx
+import hmac
+import hashlib
+import uuid
+import json
+from pydantic import BaseModel
+class SubmitPayload(BaseModel):
+    user_id: str
+    username: Optional[str] = None
+    delta: int = 0
+    submission_id: Optional[str] = None
+
+
+class WebhookRegistration(BaseModel):
+    url: str
+    secret: Optional[str] = None
 
     # Initialize FastAPI app
 app = FastAPI(title="StudyInterrupt API")
@@ -128,68 +148,54 @@ async def get_quizzes_questions(id: str):
 async def add_user(user: User):
     return crud.create_user(user)
 
-class UserConnection:
-    def __init__(self, id: str, username: str, websocket: WebSocket):
-        self.id = id
-        self.username = username
-        self.score = 0
-        self.websocket = websocket
+# Queue & worker for webhook delivery
+webhook_queue: "asyncio.Queue[tuple[str, dict]]" = asyncio.Queue()
 
 
+def enqueue_webhook(contest_id: str, event_doc: dict):
+    try:
+        webhook_queue.put_nowait((contest_id, event_doc))
+    except Exception:
+        # best-effort: if queue is full or there's an issue, ignore silently
+        pass
 
-class ActiveContest:
-    def __init__(self, contest_id: str):
-        self.contest_id = contest_id
-        self.participants: List[UserConnection] = []
-        self.hasStarted = False
-        self.end_time: datetime.datetime | None = None
 
-    async def broadcast(self, message: dict):
-        disconnected = []
-        for user in self.participants:
-            #try:
-            await user.websocket.send_json(message)
-            #except Exception:
-                #disconnected.append(user)
-        # remove disconnected users
-        for user in disconnected:
-            self.participants.remove(user)
-
-    def get_scores_dict(self):
-        return [
-            {
-                "id": user.id,
-                "username": user.username,
-                "score": user.score
-            }
-            for user in self.participants
-        ]
-
-    async def broadcast_scores(self):
-        players = [
-            {"username": u.username, "id": u.id, "score": u.score}
-            for u in self.participants
-        ]
-        await self.broadcast({
-            "type": "score_update",
-            "players": players
-        })
-
-    def set_end_time(self, end_time_value):
-        try:
-            if isinstance(end_time_value, str):
-                # attempt ISO parse
-                self.end_time = datetime.datetime.fromisoformat(end_time_value)
-            elif isinstance(end_time_value, datetime.datetime):
-                self.end_time = end_time_value
-            else:
-                # try to coerce
-                self.end_time = datetime.datetime.fromtimestamp(float(end_time_value))
-        except Exception:
-            self.end_time = None
-
-# POST methods for creating new resources
-contests: Dict[str, ActiveContest] = {}
+async def deliver_webhooks_loop():
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        while True:
+            try:
+                contest_id, event_doc = await webhook_queue.get()
+                # fetch contest doc and its webhooks
+                try:
+                    contest = contests_collection.find_one({"_id": ObjectId(contest_id)})
+                except Exception:
+                    contest = None
+                webhooks = (contest or {}).get("webhooks") or []
+                for hook in webhooks:
+                    url = hook.get("url")
+                    secret = hook.get("secret")
+                    if not url:
+                        continue
+                    payload = json.dumps(event_doc, default=str)
+                    headers = {"Content-Type": "application/json"}
+                    if secret:
+                        sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+                        headers["X-SI-Signature"] = sig
+                    # attempt delivery with retries
+                    attempts = 0
+                    while attempts < 3:
+                        try:
+                            resp = await client.post(url, content=payload, headers=headers)
+                            if 200 <= resp.status_code < 300:
+                                break
+                        except Exception:
+                            pass
+                        attempts += 1
+                        await asyncio.sleep(2 ** attempts)
+            except Exception as e:
+                # log and continue
+                print("Error in webhook delivery loop:", e)
+                await asyncio.sleep(1)
 
 # Create a new session
 @app.post("/sessions", status_code=201)
@@ -228,236 +234,175 @@ async def add_user_session(session: Session):
     except Exception as e:
         print('Error while backfilling interrupts for session:', e)
     if session['is_public']:
-       print("In Sessions")
-       print("Handler PID:", os.getpid())
-       for cid, c in contests.items():
-           print(f"\n🏁 Contest ID: {cid}")
-           print(f"Has started: {c.hasStarted}")
-           print("Participants:")
-           for p in c.participants:
-               print(f" - {p.username} (id={p.id}, score={p.score})")
-       # Look up or create the ActiveContest for this session's contest_id
-       contest = contests.get(session.get('contest_id'))
-       if not contest:
-           # create an ActiveContest instance so late joiners can reconnect
-           cid_val = session.get('contest_id')
-           contest = ActiveContest(cid_val)
-           contests[cid_val] = contest
+        # Persist a "game_start" event for the contest so clients can poll for it
+        contest_id = session.get('contest_id')
+        # Ensure a contest document exists (if not, create a minimal one)
+        try:
+            if contest_id:
+                try:
+                    maybe = crud.get_contest_by_id(contest_id)
+                    contest_doc = maybe
+                except Exception:
+                    # create a minimal contest doc
+                    new_contest = {
+                        "participants": [],
+                        "session_id": session.get('_id'),
+                        "created_at": datetime.datetime.utcnow(),
+                        "webhooks": [],
+                    }
+                    created = contests_collection.insert_one(new_contest)
+                    contest_id = str(created.inserted_id)
+                    contest_doc = contests_collection.find_one({"_id": ObjectId(contest_id)})
+            else:
+                # no contest id: create a new contest doc
+                new_contest = {
+                    "participants": [],
+                    "session_id": session.get('_id'),
+                    "created_at": datetime.datetime.utcnow(),
+                    "webhooks": [],
+                }
+                created = contests_collection.insert_one(new_contest)
+                contest_id = str(created.inserted_id)
+                contest_doc = contests_collection.find_one({"_id": ObjectId(contest_id)})
+        except Exception:
+            contest_doc = None
 
-       # set contest end time if provided so the backend keeps it alive until then
-       try:
-           contest.set_end_time(session.get('end_time'))
-       except Exception:
-           pass
+        quizzes = []
+        for quiz_id in session.get('quizz_ids') or []:
+            quiz = crud.get_quiz_by_id(quiz_id)
+            quiz["session_id"] = session['_id']
+            quiz_obj = Quizz(**quiz)
+            crud.update_quiz(quiz['_id'], quiz_obj)
+            quiz_final = crud.get_quiz_by_id(quiz['_id'])
+            quizzes.append(quiz_final)
 
-       quizzes = []
-       for quiz_id in session['quizz_ids']:
-           quiz = crud.get_quiz_by_id(quiz_id)
-           quiz["session_id"] = session['_id']
-           quiz_obj = Quizz(**quiz)  # ✅ convert dict into a Pydantic model
-           crud.update_quiz(quiz['_id'], quiz_obj)
-           quiz_final = crud.get_quiz_by_id(quiz['_id'])
-           quizzes.append(quiz_final )
+        # Build players view from contest_doc (if available)
+        players = []
+        try:
+            if contest_doc:
+                parts = contest_doc.get('participants') or []
+                for p in parts:
+                    players.append({
+                        'id': p.get('id'),
+                        'username': p.get('username'),
+                        'score': p.get('score', 0)
+                    })
+        except Exception:
+            players = []
 
-      # interrupts are backfilled above (always); keep the `interrupts` list for broadcast
-      # (the variable `interrupts` was populated in the unconditional backfill block)
+        payload = {
+            "session": session,
+            "quizzes": quizzes,
+            "interrupts": interrupts,
+            "players": players,
+            "contest_id": contest_id,
+        }
 
-       players = [
-           {"username": u.username, "id": u.id, "score": u.score}
-           for u in contest.participants
-       ]
-
-       print("Session contest participants:")
-       for p in contest.participants:
-           print(f" - {p.username} (id={p.id}, score={p.score})")
-
-           # 1. Create the full payload object first
-           payload = {
-               "session": session,
-               "quizzes": quizzes,
-               "interrupts": interrupts,
-               "players": players,
-           }
-
-           # 2. Use jsonable_encoder to make it serializable
-           serializable_payload = jsonable_encoder(payload)
-
-           # 3. Broadcast the serializable version and mark contest started
-           await contest.broadcast({
-               "type": "game_start",
-               "payload": serializable_payload  # <-- Use the encoded payload
-           })
-           contest.hasStarted = True
+        serializable_payload = jsonable_encoder(payload)
+        # persist event
+        event_doc = {
+            "contest_id": contest_id,
+            "type": "game_start",
+            "payload": serializable_payload,
+            "created_at": datetime.datetime.utcnow(),
+        }
+        try:
+            contest_events_collection.insert_one(event_doc)
+            enqueue_webhook(contest_id, event_doc)
+        except Exception as e:
+            print("Failed to persist game_start event:", e)
     return session
 
 
 @app.post("/contests", status_code=201)
-async def add_user_contest(contest: Contest):
-    print("Received contest:", contest)
-    print("As dict:", contest.dict())  # more readable
-    created_contest = crud.create_contest(contest)
-    print("created contest:", created_contest)
-    contests[created_contest["_id"]] = ActiveContest(created_contest["_id"])
-    #create_room(created_contest)
-    return created_contest
+async def create_contest_route(contest: Contest):
+    """Create a new contest document. The frontend expects POST /contests to create a public contest.
 
-
-@app.get("/contests/{id}/scores")
-async def get_contest_scores(id: str):
-    # Prefer in-memory ActiveContest state if present
+    This uses the existing CRUD helper `create_contest` which inserts into the contests_collection
+    and returns the created document with an `_id` string.
+    """
     try:
-        ac = contests.get(id)
-        if ac:
-            return {"players": ac.get_scores_dict()}
-    except Exception:
-        pass
-    # Fallback to DB contest document
-    try:
-        c = crud.get_contest_by_id(id)
-        # c may be {'contest': {...}} depending on helper; normalize
-        contest_doc = None
-        if isinstance(c, dict) and 'contest' in c:
-            contest_doc = c['contest']
-        elif isinstance(c, dict) and '_id' in c:
-            contest_doc = c
-        else:
-            contest_doc = c
-        if not contest_doc:
-            return {"players": []}
-        participants = contest_doc.get('participants') or []
-        grades = contest_doc.get('grades') or []
-        players = []
-        for idx, part in enumerate(participants):
-            players.append({
-                'id': part.get('id'),
-                'username': part.get('username'),
-                'score': grades[idx] if idx < len(grades) else None
-            })
-        return {"players": players}
+        created = crud.create_contest(contest)
+        return created
     except Exception as e:
-        return {"players": []}
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.websocket("/ws/{contest_id}/{username}/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: str, user_id: str):
-    await websocket.accept()
 
-    # Retrieve the contest
-    contest = contests.get(contest_id)
-    if not contest:
-        await websocket.send_json({"type": "can_not_join",  "text": "contest not found"})
-        await websocket.close(code=4004)
-        return
-    print("in websocket")
-    print("Handler PID:", os.getpid())
-    user = UserConnection(user_id, username=username, websocket=websocket)
-    # If contest has an end_time and it's passed, reject connections
+@app.post("/interrupts", status_code=201)
+async def create_interrupt_route(interrupt: Interrupt):
+    """Create a new interrupt (used by the frontend CreateSession flow)."""
     try:
-        if contest.end_time and isinstance(contest.end_time, datetime.datetime):
-            now = datetime.datetime.utcnow()
-            # normalize naive datetimes: assume fromisoformat produced naive UTC
-            if contest.end_time.tzinfo is None:
-                end_dt = contest.end_time
-            else:
-                end_dt = contest.end_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-            if now > end_dt:
-                await websocket.send_json({"type": "session_ended", "text": "session has ended"})
-                await websocket.close(code=4003)
-                return
-    except Exception:
-        # ignore parsing errors
-        pass
-
-    if len(contest.participants) >= 6:
-        await websocket.send_json({"type": "can_not_join",  "text": "session is full"})
-        await websocket.close(code=4001)
-        return
-
-    # Handle reconnection: if user already exists, replace its websocket
-    existing = next((p for p in contest.participants if p.id == user_id), None)
-    if existing:
-        try:
-            existing.websocket = websocket
-            await websocket.send_json({"type": "reconnected", "text": "reconnected to contest"})
-            # send current scores
-            await existing.websocket.send_json({"type": "score_update", "players": contest.get_scores_dict()})
-        except Exception:
-            pass
-    else:
-        contest.participants.append(user)
-
-    for cid, c in contests.items():
-        print(f"\n🏁 Contest ID: {cid}")
-        print(f"Has started: {c.hasStarted}")
-        print("Participants:")
-        for p in c.participants:
-            print(f" - {p.username} (id={p.id}, score={p.score})")
-
-    await contest.broadcast({"type": "user_joined", "payload": {"username": username, "id": user_id, "score": 0}})
-
-    try:
-        while True:
-            data = await websocket.receive_json()
-            # --- Player answered ---
-            contest.broadcast(data)
+        created = crud.create_interrupt(interrupt)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-    except WebSocketDisconnect:
-
-        try:
-            print("in disconnect")
-            contest.participants.remove(user)
-
-            await contest.broadcast({"type": "user_left", "payload": {"username": username}})
-
-            print(f"User {username} disconnected from contest {contest_id}")
-
-        except ValueError:
-
-            print(f"⚠️ Tried to remove user {username} not in participants list of {contest_id}")
-
-        # Do not delete the contest when everyone disconnects; keep it active until end_time so players
-        # can reconnect later and receive updated scores. A background cleanup task will remove expired contests.
-
-# Create a new quiz
 @app.post("/quizzes", status_code=201)
-async def add_user_quiz(quiz: Quizz):
-    return crud.create_quiz(quiz)
+async def create_quiz_route(quiz: Quizz):
+    """Create a new quiz (used by QuizCreate component)."""
+    try:
+        created = crud.create_quiz(quiz)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Background cleanup task: periodically remove contests past their end_time
+@app.post("/questions", status_code=201)
+async def create_question_route(question: Question):
+    """Create a new question for a quiz."""
+    try:
+        created = crud.create_question(question)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/contests/{id}", status_code=200)
+async def put_update_contest(id: str, contest: Contest):
+    """Update an existing contest document."""
+    try:
+        return crud.update_contest(id, contest)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def contest_cleanup_loop():
     while True:
         try:
             now = datetime.datetime.utcnow()
-            to_delete = []
-            for cid, c in list(contests.items()):
+            # find contests with end_time set
+            for doc in contests_collection.find({"end_time": {"$exists": True}, "ended": {"$ne": True}}):
                 try:
-                    if c.end_time:
-                        # normalize naive datetimes
-                        end_dt = c.end_time
+                    end_val = doc.get('end_time')
+                    end_dt = None
+                    if isinstance(end_val, str):
+                        try:
+                            end_dt = datetime.datetime.fromisoformat(end_val)
+                        except Exception:
+                            end_dt = None
+                    elif isinstance(end_val, datetime.datetime):
+                        end_dt = end_val
+                    if end_dt:
+                        # normalize naive
                         if end_dt.tzinfo is not None:
                             end_dt = end_dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
                         if now > end_dt:
-                            # notify participants that game is over
+                            cid = str(doc.get('_id'))
+                            # persist game_over event
+                            event_doc = {"contest_id": cid, "type": "game_over", "payload": {}, "created_at": now}
                             try:
-                                await c.broadcast({"type": "game_over", "contest_id": cid})
+                                contest_events_collection.insert_one(event_doc)
+                                enqueue_webhook(cid, event_doc)
                             except Exception:
                                 pass
-                            # close websockets for remaining participants
-                            for p in c.participants:
-                                try:
-                                    await p.websocket.close(code=4003)
-                                except Exception:
-                                    pass
-                            to_delete.append(cid)
+                            # mark contest as ended
+                            try:
+                                contests_collection.update_one({"_id": doc.get('_id')}, {"$set": {"ended": True}})
+                            except Exception:
+                                pass
                 except Exception:
                     continue
-            for cid in to_delete:
-                try:
-                    del contests[cid]
-                    print(f"Contest {cid} expired and was removed by cleanup task")
-                except Exception:
-                    pass
         except Exception as e:
             print('Error in contest cleanup loop:', e)
         await asyncio.sleep(30)
@@ -465,47 +410,144 @@ async def contest_cleanup_loop():
 
 @app.on_event('startup')
 async def start_background_tasks():
-    # start cleanup loop
+    # start webhook delivery worker and contest cleanup worker
+    asyncio.create_task(deliver_webhooks_loop())
     asyncio.create_task(contest_cleanup_loop())
 
-# Create a new interrupt
-@app.post("/interrupts", status_code=201)
-async def add_session_interrupt(interrupt: Interrupt):
-    return crud.create_interrupt(interrupt)
 
-# Create a new quiz question
-@app.post("/questions", status_code=201)
-async def add_quiz_question(question: Question):
-    return crud.create_question(question)
+@app.post("/contests/{contest_id}/join", status_code=200)
+async def join_contest(contest_id: str, user: Username):
+    # add user to contest participants if not present
+    try:
+        # normalize id
+        try:
+            oid = ObjectId(contest_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid contest id")
+        user_dict = user.model_dump()
+        # use $addToSet to avoid duplicates based on entire object
+        contests_collection.update_one({"_id": oid}, {"$addToSet": {"participants": user_dict}})
+        # persist event
+        event_doc = {
+            "contest_id": contest_id,
+            "type": "user_joined",
+            "payload": {"user": user_dict},
+            "created_at": datetime.datetime.utcnow(),
+        }
+        contest_events_collection.insert_one(event_doc)
+        enqueue_webhook(contest_id, event_doc)
+        return {"message": "joined"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# PUT methods for updating existing resources
 
-# Update an existing user
-@app.put("/users/{id}", status_code=200)
-async def edit_user(id: str, user: User):
-    return crud.update_user(id, user)
+@app.post("/contests/{contest_id}/submit", status_code=200)
+async def submit_score(contest_id: str, body: SubmitPayload):
+    try:
+        try:
+            oid = ObjectId(contest_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid contest id")
 
-# Update an existing session
-@app.put("/sessions/{id}", status_code=200)
-async def edit_user_session(id: str, session: Session):
-    return crud.update_user_session(id, session)
+        now = datetime.datetime.utcnow()
+        # Attempt to increment existing participant score atomically
+        res = contests_collection.update_one(
+            {"_id": oid, "participants.id": body.user_id},
+            {"$inc": {"participants.$.score": int(body.delta)}, "$set": {"participants.$.last_updated": now}}
+        )
+        if res.modified_count == 0:
+            # participant not found - push as new participant
+            new_part = {"id": body.user_id, "username": body.username or "", "score": int(body.delta), "last_updated": now}
+            contests_collection.update_one({"_id": oid}, {"$push": {"participants": new_part}})
 
-# Update an existing contest
-@app.put("/contests/{id}", status_code=200)
-async def edit_contest(id: str, contest: Contest):
-    return crud.update_contest(id, contest)
+        # Read updated players
+        contest_doc = contests_collection.find_one({"_id": oid})
+        participants = contest_doc.get('participants') or []
+        players = [{'id': p.get('id'), 'username': p.get('username'), 'score': p.get('score', 0)} for p in participants]
 
-# Update an existing quiz
-@app.put("/quizzes/{id}", status_code=200)
-async def edit_quiz(id: str, quiz: Quizz):
-    return crud.update_quiz(id, quiz)
+        # persist event
+        event_doc = {
+            "contest_id": contest_id,
+            "type": "score_update",
+            "payload": {"user_id": body.user_id, "delta": body.delta, "players": players},
+            "created_at": now,
+        }
+        contest_events_collection.insert_one(event_doc)
+        enqueue_webhook(contest_id, event_doc)
 
-# Update an existing interrupt
-@app.put("/interrupts/{id}", status_code=200)
-async def edit_interrupt(id: str, interrupt: Interrupt):
-    return crud.update_interrupt(id, interrupt)
+        return {"players": players}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Update an existing quiz question
+
+@app.get("/contests/{contest_id}/events")
+async def get_contest_events(contest_id: str, since: Optional[str] = None):
+    try:
+        query = {"contest_id": contest_id}
+        if since:
+            try:
+                ts = datetime.datetime.fromisoformat(since)
+                query["created_at"] = {"$gt": ts}
+            except Exception:
+                raise HTTPException(status_code=400, detail="invalid since timestamp")
+        docs = list(contest_events_collection.find(query).sort("created_at", 1).limit(200))
+        for d in docs:
+            d["_id"] = str(d["_id"])
+            if isinstance(d.get("created_at"), datetime.datetime):
+                d["created_at"] = d["created_at"].isoformat()
+        return {"events": docs}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/contests/{contest_id}/webhooks", status_code=201)
+async def register_webhook(contest_id: str, reg: WebhookRegistration):
+    try:
+        try:
+            oid = ObjectId(contest_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid contest id")
+        hook = {"id": uuid.uuid4().hex, "url": reg.url, "secret": reg.secret, "created_at": datetime.datetime.utcnow()}
+        contests_collection.update_one({"_id": oid}, {"$push": {"webhooks": hook}})
+        return {"webhook": hook}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/contests/{id}/scores")
+async def get_contest_scores(id: str):
+    # Read contest from DB and normalize participants into player list
+    try:
+        try:
+            contest_doc = contests_collection.find_one({"_id": ObjectId(id)})
+        except Exception:
+            # try via crud helper (which raises on not found)
+            contest_doc = crud.get_contest_by_id(id)
+        if not contest_doc:
+            return {"players": []}
+        participants = contest_doc.get('participants') or []
+        players = []
+        # participants may be list of dicts with id/username/score
+        for p in participants:
+            if isinstance(p, dict):
+                players.append({
+                    'id': p.get('id'),
+                    'username': p.get('username'),
+                    'score': p.get('score', 0)
+                })
+        return {"players": players}
+    except Exception:
+        return {"players": []}
+
+# websockets removed: clients should use POST /contests/{id}/join, POST /contests/{id}/submit and poll
 @app.put("/questions/{id}", status_code=200)
 async def edit_question(id: str, question: Question):
     return crud.update_question(id, question)
