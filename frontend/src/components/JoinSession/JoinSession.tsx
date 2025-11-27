@@ -5,7 +5,7 @@ import OopsModal from '../Default/OopsModal';
 import { useAuth } from '../../AuthContext';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useSessionBridge } from '../../contexts/SessionBridgeContext';
 
 interface Message {
   type: string;
@@ -35,14 +35,27 @@ const JoinSession: React.FC = () => {
   const [sessionId, setSessionId] = useState("");
   const [contestId, setContestId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const { connect, disconnect, registerHandler } = useWebSocket();
+  const { connect, disconnect, registerHandler } = useSessionBridge();
   const wsHandlerUnsub = useRef<(() => void) | null>(null);
 
   const showError = (msg: string) => {
     setErrorMessage(msg);
     setIsErrorModalOpen(true);
   };
+
+  // Ensure any registered handler is unregistered when the component unmounts
+  useEffect(() => {
+    return () => {
+      try {
+        if (wsHandlerUnsub.current) {
+          wsHandlerUnsub.current();
+          wsHandlerUnsub.current = null;
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, []);
 
   // Listen for messages from the extension (e.g. SESSION_STOPPED from popup)
   useEffect(() => {
@@ -98,7 +111,7 @@ const handleJoinSession = async () => {
     // Validate contest exists before connecting
     await axios.get(`https://studyinterruptbackend.onrender.com/contests/${contestId}`);
 
-    // Use the WebSocket context to connect and register a local message handler
+    // Use the WebSocket context (HTTP-based) to connect and register a local message handler
     connect(contestId, user.username, userId);
     wsHandlerUnsub.current = registerHandler((msg: any) => {
       switch (msg.type) {

@@ -314,6 +314,59 @@ async def add_user_session(session: Session):
     return session
 
 
+@app.post("/contests", status_code=201)
+async def create_contest_route(contest: Contest):
+    """Create a new contest document. The frontend expects POST /contests to create a public contest.
+
+    This uses the existing CRUD helper `create_contest` which inserts into the contests_collection
+    and returns the created document with an `_id` string.
+    """
+    try:
+        created = crud.create_contest(contest)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/interrupts", status_code=201)
+async def create_interrupt_route(interrupt: Interrupt):
+    """Create a new interrupt (used by the frontend CreateSession flow)."""
+    try:
+        created = crud.create_interrupt(interrupt)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/quizzes", status_code=201)
+async def create_quiz_route(quiz: Quizz):
+    """Create a new quiz (used by QuizCreate component)."""
+    try:
+        created = crud.create_quiz(quiz)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/questions", status_code=201)
+async def create_question_route(question: Question):
+    """Create a new question for a quiz."""
+    try:
+        created = crud.create_question(question)
+        return created
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/contests/{id}", status_code=200)
+async def put_update_contest(id: str, contest: Contest):
+    """Update an existing contest document."""
+    try:
+        return crud.update_contest(id, contest)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def contest_cleanup_loop():
     while True:
         try:

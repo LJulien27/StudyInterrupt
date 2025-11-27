@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useSessionBridge } from '../../contexts/SessionBridgeContext';
 import { useAuth } from '../../AuthContext';
 
 const Sidebar: React.FC = () => {
-  const { players: ctxPlayers, connected: wsConnected } = useWebSocket();
+  const { players: ctxPlayers, connected: wsConnected } = useSessionBridge();
   const { user } = useAuth();
   const [players, setPlayers] = useState<Array<{ id?: string; username: string; score?: number }>>([]);
+  const [sessionAvailable, setSessionAvailable] = useState<boolean>(false);
 
   const readPlayers = () => {
     try {
@@ -26,6 +27,13 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     // sync players from websocket context
     setPlayers(Array.isArray(ctxPlayers) ? ctxPlayers : []);
+    // determine if there's a public session available
+    try {
+      const hasSession = !!(window as any).localStorage.getItem('si_public_contest_id');
+      setSessionAvailable(hasSession || (ctxPlayers && ctxPlayers.length > 0));
+    } catch (e) {
+      setSessionAvailable(!!(ctxPlayers && ctxPlayers.length > 0));
+    }
   }, [ctxPlayers]);
 
   // sort players by score desc (undefined scores treated as -Infinity so they appear last)
@@ -36,12 +44,15 @@ const Sidebar: React.FC = () => {
     return (a.username || '').localeCompare(b.username || '');
   });
 
+  // Only render the sidebar when there is an active public session or players data
+  if (!sessionAvailable) return null;
+
   return (
     <aside style={{ width: 300, borderLeft: '1px solid #e9ecef', padding: 12, boxSizing: 'border-box', background: '#fafafa', position: 'sticky', top: 72 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <h5 style={{ margin: 0 }}>Leaderboard</h5>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <small style={{ color: wsConnected ? '#0a0' : '#999' }}>{wsConnected ? 'Live' : 'Disconnected'}</small>
+          <small style={{ color: wsConnected ? '#0a0' : '#999' }}>{wsConnected ? 'Live' : 'Idle'}</small>
         </div>
       </div>
 
