@@ -303,6 +303,8 @@ export const SessionBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             if (changes.si_session_active && changes.si_session_active.newValue === false) {
               try { (window as any).chrome.storage.local.remove && (window as any).chrome.storage.local.remove(['si_public_contest_id']); } catch (e) {}
               try { localStorage.removeItem('si_public_contest_id'); } catch (e) {}
+              // if session was stopped elsewhere, ensure we disconnect this context
+              try { if (typeof disconnect === 'function') disconnect(); } catch (e) { /* ignore */ }
             }
             if (changes.si_public_contest_id) {
               const newCid = changes.si_public_contest_id.newValue;
@@ -328,6 +330,8 @@ export const SessionBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
           try {
             if (ev.key === 'si_session_active' && ev.newValue === 'false') {
               try { localStorage.removeItem('si_public_contest_id'); } catch (e) {}
+              // ensure local disconnect when another tab stopped the session
+              try { if (typeof disconnect === 'function') disconnect(); } catch (e) { /* ignore */ }
             }
             if (ev.key === 'si_public_contest_id' && ev.newValue) {
               // attempt reconnect from localStorage change

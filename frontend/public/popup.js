@@ -658,11 +658,26 @@ document.addEventListener("DOMContentLoaded", () => {
           status.textContent = 'Quitting session…';
 
           const finishLocal = (msg) => {
-          try { localStorage.setItem('si_session_active', 'false'); } catch (_) {}
-          // stop the active countdown timer if running
-          try { if (activeTimerId) { clearInterval(activeTimerId); activeTimerId = null; } } catch (e) { /* ignore */ }
-          renderNoSessionView();
-          status.textContent = msg || 'Session stopped (local)';
+            try { localStorage.setItem('si_session_active', 'false'); } catch (_) {}
+            // remove persisted session/contest ids so other tabs/contexts won't auto-reconnect
+            try {
+              if (hasChrome && chrome.storage && chrome.storage.local && typeof chrome.storage.local.remove === 'function') {
+                try {
+                  chrome.storage.local.remove(['si_public_contest_id','si_session_id','si_session_interrupts','si_interrupt_pending','si_current_interrupt_now','si_pending_interrupt_quizId','si_pending_interrupt_id','si_participant_id'], () => {});
+                } catch (e) { /* ignore */ }
+              }
+            } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_public_contest_id'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_session_id'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_session_interrupts'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_interrupt_pending'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_current_interrupt_now'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_pending_interrupt_quizId'); } catch (e) { /* ignore */ }
+            try { localStorage.removeItem('si_pending_interrupt_id'); } catch (e) { /* ignore */ }
+            // stop the active countdown timer if running
+            try { if (activeTimerId) { clearInterval(activeTimerId); activeTimerId = null; } } catch (e) { /* ignore */ }
+            renderNoSessionView();
+            status.textContent = msg || 'Session stopped (local)';
           };
 
           if (hasChrome && chrome.runtime && chrome.runtime.sendMessage) {

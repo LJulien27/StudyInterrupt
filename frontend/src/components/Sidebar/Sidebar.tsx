@@ -81,7 +81,7 @@ const Sidebar: React.FC = () => {
           <div style={{ color: '#666' }}>No players yet — leaderboard will appear when players join.</div>
         )
       ) : (
-        <div style={{ color: '#666' }}>Leaderboard hidden — no websocket connection.</div>
+        <div style={{ color: '#666' }}>Leaderboard hidden — no connection.</div>
       )}
     </aside>
   );
