@@ -52,6 +52,7 @@ class Interrupt(BaseModel):
     creator_id: str                           # ID of the creator
     session_id: str | None = None             # Associated session ID, optional
     quiz_id: str | None = None
+    title: str | None = None                  # Optional title for quiz interrupts
 
 # Model for a Session object
 class Session(BaseModel):
