@@ -8,6 +8,7 @@ import os
 import asyncio
 from typing import Dict, List
 from fastapi.encoders import jsonable_encoder
+import datetime
 
 import crud
 from crud import *
@@ -141,6 +142,7 @@ class ActiveContest:
         self.contest_id = contest_id
         self.participants: List[UserConnection] = []
         self.hasStarted = False
+        self.end_time: datetime.datetime | None = None
 
     async def broadcast(self, message: dict):
         disconnected = []
@@ -172,6 +174,19 @@ class ActiveContest:
             "type": "score_update",
             "players": players
         })
+
+    def set_end_time(self, end_time_value):
+        try:
+            if isinstance(end_time_value, str):
+                # attempt ISO parse
+                self.end_time = datetime.datetime.fromisoformat(end_time_value)
+            elif isinstance(end_time_value, datetime.datetime):
+                self.end_time = end_time_value
+            else:
+                # try to coerce
+                self.end_time = datetime.datetime.fromtimestamp(float(end_time_value))
+        except Exception:
+            self.end_time = None
 
 # POST methods for creating new resources
 contests: Dict[str, ActiveContest] = {}
@@ -221,7 +236,19 @@ async def add_user_session(session: Session):
            print("Participants:")
            for p in c.participants:
                print(f" - {p.username} (id={p.id}, score={p.score})")
-       contest = contests[session['contest_id']]
+       # Look up or create the ActiveContest for this session's contest_id
+       contest = contests.get(session.get('contest_id'))
+       if not contest:
+           # create an ActiveContest instance so late joiners can reconnect
+           cid_val = session.get('contest_id')
+           contest = ActiveContest(cid_val)
+           contests[cid_val] = contest
+
+       # set contest end time if provided so the backend keeps it alive until then
+       try:
+           contest.set_end_time(session.get('end_time'))
+       except Exception:
+           pass
 
        quizzes = []
        for quiz_id in session['quizz_ids']:
@@ -255,11 +282,12 @@ async def add_user_session(session: Session):
            # 2. Use jsonable_encoder to make it serializable
            serializable_payload = jsonable_encoder(payload)
 
-           # 3. Broadcast the serializable version
+           # 3. Broadcast the serializable version and mark contest started
            await contest.broadcast({
                "type": "game_start",
                "payload": serializable_payload  # <-- Use the encoded payload
            })
+           contest.hasStarted = True
     return session
 
 
@@ -273,26 +301,89 @@ async def add_user_contest(contest: Contest):
     #create_room(created_contest)
     return created_contest
 
+
+@app.get("/contests/{id}/scores")
+async def get_contest_scores(id: str):
+    # Prefer in-memory ActiveContest state if present
+    try:
+        ac = contests.get(id)
+        if ac:
+            return {"players": ac.get_scores_dict()}
+    except Exception:
+        pass
+    # Fallback to DB contest document
+    try:
+        c = crud.get_contest_by_id(id)
+        # c may be {'contest': {...}} depending on helper; normalize
+        contest_doc = None
+        if isinstance(c, dict) and 'contest' in c:
+            contest_doc = c['contest']
+        elif isinstance(c, dict) and '_id' in c:
+            contest_doc = c
+        else:
+            contest_doc = c
+        if not contest_doc:
+            return {"players": []}
+        participants = contest_doc.get('participants') or []
+        grades = contest_doc.get('grades') or []
+        players = []
+        for idx, part in enumerate(participants):
+            players.append({
+                'id': part.get('id'),
+                'username': part.get('username'),
+                'score': grades[idx] if idx < len(grades) else None
+            })
+        return {"players": players}
+    except Exception as e:
+        return {"players": []}
+
 @app.websocket("/ws/{contest_id}/{username}/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: str, user_id: str):
     await websocket.accept()
 
     # Retrieve the contest
-    contest = contests[contest_id]
+    contest = contests.get(contest_id)
+    if not contest:
+        await websocket.send_json({"type": "can_not_join",  "text": "contest not found"})
+        await websocket.close(code=4004)
+        return
     print("in websocket")
     print("Handler PID:", os.getpid())
     user = UserConnection(user_id, username=username, websocket=websocket)
+    # If contest has an end_time and it's passed, reject connections
+    try:
+        if contest.end_time and isinstance(contest.end_time, datetime.datetime):
+            now = datetime.datetime.utcnow()
+            # normalize naive datetimes: assume fromisoformat produced naive UTC
+            if contest.end_time.tzinfo is None:
+                end_dt = contest.end_time
+            else:
+                end_dt = contest.end_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            if now > end_dt:
+                await websocket.send_json({"type": "session_ended", "text": "session has ended"})
+                await websocket.close(code=4003)
+                return
+    except Exception:
+        # ignore parsing errors
+        pass
 
-    if contest.hasStarted:
-        await websocket.send_json({"type": "can_not_join",  "text": "session has already started"})
-        await websocket.close(code=4001)
-        return
-    if len(contest.participants) > 5:
+    if len(contest.participants) >= 6:
         await websocket.send_json({"type": "can_not_join",  "text": "session is full"})
         await websocket.close(code=4001)
         return
 
-    contest.participants.append(user)
+    # Handle reconnection: if user already exists, replace its websocket
+    existing = next((p for p in contest.participants if p.id == user_id), None)
+    if existing:
+        try:
+            existing.websocket = websocket
+            await websocket.send_json({"type": "reconnected", "text": "reconnected to contest"})
+            # send current scores
+            await existing.websocket.send_json({"type": "score_update", "players": contest.get_scores_dict()})
+        except Exception:
+            pass
+    else:
+        contest.participants.append(user)
 
     for cid, c in contests.items():
         print(f"\n🏁 Contest ID: {cid}")
@@ -324,18 +415,58 @@ async def websocket_endpoint(websocket: WebSocket, contest_id: str, username: st
 
             print(f"⚠️ Tried to remove user {username} not in participants list of {contest_id}")
 
-        # If no one is left, clean up the contest
-
-        if len(contest.participants) == 0:
-
-            del contests[contest_id]
-
-            print(f"Contest {contest_id} deleted (no participants left)")
+        # Do not delete the contest when everyone disconnects; keep it active until end_time so players
+        # can reconnect later and receive updated scores. A background cleanup task will remove expired contests.
 
 # Create a new quiz
 @app.post("/quizzes", status_code=201)
 async def add_user_quiz(quiz: Quizz):
     return create_quiz(quiz)
+
+
+# Background cleanup task: periodically remove contests past their end_time
+async def contest_cleanup_loop():
+    while True:
+        try:
+            now = datetime.datetime.utcnow()
+            to_delete = []
+            for cid, c in list(contests.items()):
+                try:
+                    if c.end_time:
+                        # normalize naive datetimes
+                        end_dt = c.end_time
+                        if end_dt.tzinfo is not None:
+                            end_dt = end_dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                        if now > end_dt:
+                            # notify participants that game is over
+                            try:
+                                await c.broadcast({"type": "game_over", "contest_id": cid})
+                            except Exception:
+                                pass
+                            # close websockets for remaining participants
+                            for p in c.participants:
+                                try:
+                                    await p.websocket.close(code=4003)
+                                except Exception:
+                                    pass
+                            to_delete.append(cid)
+                except Exception:
+                    continue
+            for cid in to_delete:
+                try:
+                    del contests[cid]
+                    print(f"Contest {cid} expired and was removed by cleanup task")
+                except Exception:
+                    pass
+        except Exception as e:
+            print('Error in contest cleanup loop:', e)
+        await asyncio.sleep(30)
+
+
+@app.on_event('startup')
+async def start_background_tasks():
+    # start cleanup loop
+    asyncio.create_task(contest_cleanup_loop())
 
 # Create a new interrupt
 @app.post("/interrupts", status_code=201)

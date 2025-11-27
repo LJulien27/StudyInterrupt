@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useRef, useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
 
 type Player = { id?: string; username: string; score?: number };
 
@@ -171,11 +172,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     try {
       const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.get === 'function';
-      const tryConnect = (cid: any) => {
+      const tryConnect = async (cid: any) => {
         try {
           if (!cid) return;
           // if already connected or connecting, do nothing
           if (wsRef.current || connected) return;
+          // attempt to fetch current scoreboard via HTTP endpoint so the UI can show leaderboard
+          try {
+            const resp = await axios.get(`https://studyinterruptbackend.onrender.com/contests/${String(cid)}/scores`);
+            if (resp && resp.data && Array.isArray(resp.data.players)) {
+              setPlayers(resp.data.players as Player[]);
+            }
+          } catch (e) {
+            // ignore fetch errors
+          }
           // read user from localStorage (set during auth flows)
           let user = null;
           try {
