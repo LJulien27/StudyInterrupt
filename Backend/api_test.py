@@ -329,6 +329,7 @@ def test_add_user_success(mock_db):
         "username": "testuser",
         "email": "test@example.com",
         "password": "securepassword",
+        "google_id": "google",
         "created_at": datetime.now().isoformat(),
         "default_session_length": 180,
         "default_min_range": 30,
@@ -357,6 +358,7 @@ def test_add_user_missing_fields():
         "username": "",
         "email": "test@example.com",
         "password": "securepassword",
+        "google_id": "google",
         "created_at": datetime.now().isoformat(),
         "default_session_length": 180,
         "default_min_range": 30,
@@ -369,7 +371,7 @@ def test_add_user_missing_fields():
     # Check if status code is 400 (Bad Request due to missing fields)
     assert response.status_code == 400
     # Ensure the error message indicates missing username, email, and password
-    assert response.json()["detail"] == "Username, email, and password are required"
+    assert response.json()["detail"] == "Username, email, and google_id are required"
 
 # ✅ Test Adding a User with Duplicate Email
 def test_add_user_duplicate_email(mock_db):
@@ -378,6 +380,7 @@ def test_add_user_duplicate_email(mock_db):
         "username": "testuser",
         "email": "andre@example.com",
         "password": "securepassword",
+        "google_id": "google",
         "created_at": datetime.now().isoformat(),
         "default_session_length": 180,
         "default_min_range": 30,
@@ -529,6 +532,7 @@ def test_update_user_success(mock_db):
         "username": "testuser",
         "email": "test@example.com",
         "password": "securepassword",
+        "google_id": "google",
         "created_at": datetime.now().isoformat(),
         "default_session_length": 180,
         "default_min_range": 30,
