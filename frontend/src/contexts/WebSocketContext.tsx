@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useRef, useState, useCallback, useEffect } from 'react';
 
 type Player = { id?: string; username: string; score?: number };
 
@@ -39,6 +39,57 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     handlersRef.current.forEach((h) => {
       try { h(msg); } catch (e) { console.warn('ws handler failed', e); }
     });
+  }, []);
+
+  // Persist players to storage whenever they change so the leaderboard can be restored
+  useEffect(() => {
+    try {
+      const trimmed = Array.isArray(players) ? players.map(p => ({ id: p.id, username: p.username, score: p.score })) : [];
+      const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.set === 'function';
+      if (hasChromeStorage) {
+        try {
+          (window as any).chrome.storage.local.set({ si_session_players: trimmed }, () => { /* no-op */ });
+        } catch (e) {
+          try { localStorage.setItem('si_session_players', JSON.stringify(trimmed)); } catch (e2) { /* ignore */ }
+        }
+      } else {
+        try { localStorage.setItem('si_session_players', JSON.stringify(trimmed)); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* ignore */ }
+  }, [players]);
+
+  // On mount, try to restore players from storage so leaderboard persists across reloads/close-open
+  useEffect(() => {
+    try {
+      const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.get === 'function';
+      if (hasChromeStorage) {
+        try {
+          (window as any).chrome.storage.local.get(['si_session_players'], (items: any) => {
+            try {
+              const raw = items && items.si_session_players ? items.si_session_players : null;
+              if (raw && Array.isArray(raw)) setPlayers(raw as Player[]);
+              else {
+                // fallback to localStorage if present
+                const ls = localStorage.getItem('si_session_players') || localStorage.getItem('si_session_leaderboard');
+                if (ls) {
+                  try { const parsed = JSON.parse(ls); if (Array.isArray(parsed)) setPlayers(parsed as Player[]); } catch (e) { /* ignore */ }
+                }
+              }
+            } catch (e) { /* ignore */ }
+          });
+        } catch (e) {
+          const ls = localStorage.getItem('si_session_players') || localStorage.getItem('si_session_leaderboard');
+          if (ls) {
+            try { const parsed = JSON.parse(ls); if (Array.isArray(parsed)) setPlayers(parsed as Player[]); } catch (e) { /* ignore */ }
+          }
+        }
+      } else {
+        const ls = localStorage.getItem('si_session_players') || localStorage.getItem('si_session_leaderboard');
+        if (ls) {
+          try { const parsed = JSON.parse(ls); if (Array.isArray(parsed)) setPlayers(parsed as Player[]); } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (e) { /* ignore */ }
   }, []);
 
   const onMessage = useCallback((ev: MessageEvent) => {
@@ -115,6 +166,110 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     handlersRef.current.set(id, h);
     return () => { handlersRef.current.delete(id); };
   }, []);
+
+  // Auto-reconnect on mount if a public contest id is persisted
+  useEffect(() => {
+    try {
+      const hasChromeStorage = (window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.local && typeof (window as any).chrome.storage.local.get === 'function';
+      const tryConnect = (cid: any) => {
+        try {
+          if (!cid) return;
+          // if already connected or connecting, do nothing
+          if (wsRef.current || connected) return;
+          // read user from localStorage (set during auth flows)
+          let user = null;
+          try {
+            const raw = localStorage.getItem('user');
+            if (raw) user = JSON.parse(raw);
+          } catch (e) { user = null; }
+          const username = (user && (user.name || user.username)) || null;
+          const userId = (user && (user._id || user.id)) || null;
+          if (username && userId) {
+            // call connect from context
+            try { connect(String(cid), String(username), String(userId)); } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+      };
+
+      if (hasChromeStorage) {
+        try {
+          (window as any).chrome.storage.local.get(['si_public_contest_id'], (items: any) => {
+            try {
+              const cid = items && items.si_public_contest_id ? items.si_public_contest_id : null;
+              if (cid) tryConnect(cid);
+              else {
+                const ls = localStorage.getItem('si_public_contest_id');
+                if (ls) tryConnect(ls);
+              }
+            } catch (e) { /* ignore */ }
+          });
+        } catch (e) {
+          const ls = localStorage.getItem('si_public_contest_id');
+          if (ls) tryConnect(ls);
+        }
+      } else {
+        const ls = localStorage.getItem('si_public_contest_id');
+        if (ls) tryConnect(ls);
+      }
+    } catch (e) { /* ignore */ }
+  }, [connect, connected]);
+
+  // Listen for storage changes to clear or update persisted contest id
+  useEffect(() => {
+    try {
+      if ((window as any).chrome && (window as any).chrome.storage && (window as any).chrome.storage.onChanged) {
+        const listener = (changes: any, area: string) => {
+          if (area !== 'local') return;
+          try {
+            if (changes.si_session_active && changes.si_session_active.newValue === false) {
+              try { (window as any).chrome.storage.local.remove && (window as any).chrome.storage.local.remove(['si_public_contest_id']); } catch (e) {}
+              try { localStorage.removeItem('si_public_contest_id'); } catch (e) {}
+            }
+            if (changes.si_public_contest_id) {
+              const newCid = changes.si_public_contest_id.newValue;
+              // if new contest id appears and we're not connected, attempt to connect
+              if (newCid && !wsRef.current && !connected) {
+                // attempt to read user from localStorage
+                let user = null;
+                try { const raw = localStorage.getItem('user'); if (raw) user = JSON.parse(raw); } catch (e) { user = null; }
+                const username = (user && (user.name || user.username)) || null;
+                const userId = (user && (user._id || user.id)) || null;
+                if (username && userId) {
+                  try { connect(String(newCid), String(username), String(userId)); } catch (e) { /* ignore */ }
+                }
+              }
+            }
+          } catch (e) { /* ignore */ }
+        };
+        (window as any).chrome.storage.onChanged.addListener(listener);
+        return () => { try { (window as any).chrome.storage.onChanged.removeListener(listener); } catch (e) {} };
+      } else {
+        // Fallback: listen to window 'storage' events (localStorage) for non-extension runs
+        const onLs = (ev: StorageEvent) => {
+          try {
+            if (ev.key === 'si_session_active' && ev.newValue === 'false') {
+              try { localStorage.removeItem('si_public_contest_id'); } catch (e) {}
+            }
+            if (ev.key === 'si_public_contest_id' && ev.newValue) {
+              // attempt reconnect from localStorage change
+              try {
+                const raw = localStorage.getItem('user');
+                let user = null;
+                if (raw) user = JSON.parse(raw);
+                const username = (user && (user.name || user.username)) || null;
+                const userId = (user && (user._id || user.id)) || null;
+                if (username && userId && !wsRef.current && !connected) {
+                  connect(String(ev.newValue), String(username), String(userId));
+                }
+              } catch (e) { /* ignore */ }
+            }
+          } catch (e) { /* ignore */ }
+        };
+        window.addEventListener('storage', onLs);
+        return () => { window.removeEventListener('storage', onLs); };
+      }
+    } catch (e) { /* ignore */ }
+  }, [connect, connected]);
 
   const value: WebSocketContextValue = {
     connected,
