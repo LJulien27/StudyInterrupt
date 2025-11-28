@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSessionBridge } from '../../contexts/SessionBridgeContext';
 import { useAuth } from '../../AuthContext';
+
+type Player = { id?: string; username: string; score?: number };
 
 const Sidebar: React.FC = () => {
   const { players: ctxPlayers, connected: wsConnected, currentContestId } = useSessionBridge();
   const { user } = useAuth();
-  const [players, setPlayers] = useState<Array<{ id?: string; username: string; score?: number }>>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
 
+  //Deprecated
   const readPlayers = () => {
     try {
       const raw = localStorage.getItem('si_session_players') || localStorage.getItem('si_session_leaderboard');
@@ -28,13 +31,40 @@ const Sidebar: React.FC = () => {
     setPlayers(Array.isArray(ctxPlayers) ? ctxPlayers : []);
   }, [ctxPlayers]);
 
+  // Deduplicate players by id/username, keeping the entry with the highest score
+  const dedupedPlayers = useMemo(() => {
+    const list = Array.isArray(players) ? players : [];
+    const map = new Map<string, Player>();
+
+    for (const p of list) {
+      const key = p.id || p.username;
+      if (!key) continue; // skip completely anonymous entries
+
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, p);
+      } else {
+        const existingScore = typeof existing.score === 'number' ? existing.score : Number.NEGATIVE_INFINITY;
+        const newScore = typeof p.score === 'number' ? p.score : Number.NEGATIVE_INFINITY;
+        // Keep the one with the higher score; if equal, keep the existing one
+        if (newScore > existingScore) {
+          map.set(key, p);
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [players]);
+
   // sort players by score desc (undefined scores treated as -Infinity so they appear last)
-  const sorted = [...(players || [])].sort((a, b) => {
-    const sa = typeof a.score === 'number' ? a.score : Number.NEGATIVE_INFINITY;
-    const sb = typeof b.score === 'number' ? b.score : Number.NEGATIVE_INFINITY;
-    if (sb !== sa) return sb - sa;
-    return (a.username || '').localeCompare(b.username || '');
-  });
+  const sorted = useMemo(() => {
+    return [...dedupedPlayers].sort((a, b) => {
+      const sa = typeof a.score === 'number' ? a.score : Number.NEGATIVE_INFINITY;
+      const sb = typeof b.score === 'number' ? b.score : Number.NEGATIVE_INFINITY;
+      if (sb !== sa) return sb - sa;
+      return (a.username || '').localeCompare(b.username || '');
+    });
+  }, [dedupedPlayers]);
 
   // Only render the sidebar when the sessionBridge reports an active contest id
   if (!currentContestId) return null;
