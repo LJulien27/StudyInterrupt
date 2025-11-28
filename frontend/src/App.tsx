@@ -67,7 +67,7 @@ const App: React.FC = () => {
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
         <Container>
           {/* Brand name linking to the home page */}
-          <Navbar.Brand as={Link} to="/">StudyInterrupt</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">StudyBreak</Navbar.Brand>
           {/* Toggle button for responsive design */}
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
