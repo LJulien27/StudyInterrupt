@@ -110,33 +110,46 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Logout: remove cached token and clear local user state
-  function doLogout() {
-    try {
-      if (!hasChrome || !chrome.identity || !chrome.identity.getAuthToken || !chrome.identity.removeCachedAuthToken) {
-        // best-effort: clear local storage and update controls
+  // Logout: revoke and remove cached token and clear local user state
+   function doLogout() {
+  try {
+    // If we don't have chrome.identity, just clear local state + UI
+    if (!hasChrome || !chrome.identity || !chrome.identity.getAuthToken || !chrome.identity.removeCachedAuthToken) {
+      try { localStorage.removeItem('user'); } catch (e) {}
+      updateAuthControls(false, null);
+      return;
+    }
+
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        // No token to revoke/remove – treat as logged out on our side
         try { localStorage.removeItem('user'); } catch (e) {}
         updateAuthControls(false, null);
         return;
       }
-      // get cached token then remove it
-      chrome.identity.getAuthToken({ interactive: false }, (token) => {
-        if (chrome.runtime.lastError) {
-          // nothing to remove
-          try { localStorage.removeItem('user'); } catch (e) {}
-          updateAuthControls(false, null);
-          return;
-        }
-        chrome.identity.removeCachedAuthToken({ token }, () => {
-          try { localStorage.removeItem('user'); } catch (e) {}
-          updateAuthControls(false, null);
+
+      // Revoke token with Google (best-effort)
+      fetch(`https://accounts.google.com/o/oauth2/revoke?token=${encodeURIComponent(token)}`)
+        .catch((err) => {
+          console.warn('Token revoke failed (continuing logout):', err);
+        })
+        .finally(() => {
+          // Remove token from Chrome cache
+          chrome.identity.removeCachedAuthToken({ token }, () => {
+            // Clear your local user state
+            try { localStorage.removeItem('user'); } catch (e) {}
+
+            // Update UI to logged-out
+            updateAuthControls(false, null);
+          });
         });
-      });
-    } catch (e) {
-      try { localStorage.removeItem('user'); } catch (e) {}
-      updateAuthControls(false, null);
-    }
+    });
+  } catch (e) {
+    console.error('doLogout error:', e);
+    try { localStorage.removeItem('user'); } catch (e2) {}
+    updateAuthControls(false, null);
   }
+}
 
   // Try to get a cached token; fall back to interactive sign-in.
   function tryAuth() {
