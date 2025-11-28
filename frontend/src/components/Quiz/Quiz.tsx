@@ -72,13 +72,48 @@ const Quiz: React.FC = () => {
 
   useEffect(() => {
     if (!user || (!user._id && !user.id)) return;
-    
+
     const userId = (user as any)._id || user.id;
     const fetchQuizzes = async () => {
-      const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/quizzes`);
-      setQuizes(Array.isArray(response.data.quizzes) ? response.data.quizzes : []);
+      try {
+        const response = await axios.get(`https://studyinterruptbackend.onrender.com/users/${userId}/quizzes`);
+        let quizzes = Array.isArray(response.data.quizzes) ? response.data.quizzes : [];
+
+        // If the route contains a quizId (e.g. from an interrupt) and that quiz
+        // isn't in the user's quizzes, try fetching the quiz directly by id.
+        try {
+          let search = window.location.search || '';
+          if ((!search || search === '') && window.location.hash) {
+            const idx = window.location.hash.indexOf('?');
+            if (idx >= 0) search = window.location.hash.slice(idx);
+          }
+          if (search) {
+            const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+            const quizId = params.get('quizId') || params.get('id');
+            if (quizId && !quizzes.find((q: any) => q._id === quizId)) {
+              try {
+                const r2 = await axios.get(`https://studyinterruptbackend.onrender.com/quizzes/${quizId}`);
+                // backend may return { quiz: {...} } or quiz object directly
+                const fetched = r2.data && (r2.data.quiz || r2.data);
+                if (fetched && fetched._id) {
+                  quizzes = [...quizzes, fetched];
+                }
+              } catch (e) {
+                console.warn('Failed to fetch quiz by id:', e);
+              }
+            }
+          }
+        } catch (e) {
+          // ignore URL parsing errors
+        }
+
+        setQuizes(quizzes);
+      } catch (err) {
+        console.error('Failed to load quizzes for user:', err);
+        setQuizes([]);
+      }
     };
-  
+
     fetchQuizzes();
   }, [user]);
 
