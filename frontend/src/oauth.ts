@@ -5,29 +5,45 @@ export async function initOAuth() {
       return;
     }
   */
-  async function authenticate(interactive : boolean): Promise<string>{
-    return new Promise((resolve, reject) => {
-      // Check if chrome.identity is available (Chrome extension API)
-      if (typeof chrome === 'undefined' || !chrome.identity) {
-        reject(new Error("Chrome identity API not available"));
-        return;
-      }
-      
-      chrome.identity.getAuthToken({ interactive }, function(result) {
-        const token = result?.token;
+  async function authenticate(interactive: boolean): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Guard: only run inside extension
+    if (typeof chrome === "undefined" || !chrome.identity || !chrome.identity.getAuthToken) {
+      reject(new Error("Chrome identity API not available"));
+      return;
+    }
+
+    chrome.identity.getAuthToken(
+      { interactive },
+      // `result` can be string | { token: string } | undefined, so type as `any`
+      (result: any) => {
+        let token: string | undefined;
+
+        // Handle both possible shapes:
+        if (typeof result === "string") {
+          token = result;
+        } else if (result && typeof result.token === "string") {
+          token = result.token;
+        }
+
         if (chrome.runtime.lastError || !token) {
-          // Don't throw error if user cancelled or if not interactive
+          // No token (or error)
           if (!interactive && chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            reject(chrome.runtime.lastError ?? new Error("User did not log in"));
+            reject(
+              chrome.runtime.lastError ??
+              new Error("User did not log in or no token available")
+            );
           }
         } else {
-          resolve(token);
+          resolve(token); // ✅ token is a string here
         }
-      });
-    });
-  }
+      }
+    );
+  });
+}
+
 
   async function fetchUserInfo(token : string): Promise<any> {
     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
