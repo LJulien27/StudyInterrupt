@@ -111,27 +111,44 @@ function openPopupUIFallback(manifestPopupPath = 'public/popup.html') {
     }
 }
 
-function tryOpenPopup(manifestPopupPath = 'public/popup.html') {
+// Opens popup using chrome.action.openPopup(), option to fall back to opening the popup in a chrome tab
+// Default dont let the popup open as a tab if already open. Current implementation should always use false as the chrome tab version of popup has routing issues
+function tryOpenPopup(manifestPopupPath = 'public/popup.html', allowTabFallback = false) {
     if (chrome.action && typeof chrome.action.openPopup === 'function') {
         try {
             const maybePromise = chrome.action.openPopup();
             // Handle promise-based implementations
             if (maybePromise && typeof maybePromise.then === 'function') {
                 maybePromise.catch((err) => {
-                    console.warn('chrome.action.openPopup() rejected, falling back to tab:', err);
-                    openPopupUIFallback(manifestPopupPath);
+                    console.warn('chrome.action.openPopup() rejected:', err);
+                    if (allowTabFallback) {
+                        console.warn('Falling back to tab for popup UI');
+                        openPopupUIFallback(manifestPopupPath);
+                    } else {
+                        console.warn('Tab fallback disabled; not opening popup page as tab');
+                    }
                 });
             }
             return;
         } catch (err) {
-            console.warn('chrome.action.openPopup() threw, falling back to tab:', err);
-            openPopupUIFallback(manifestPopupPath);
+            console.warn('chrome.action.openPopup() threw:', err);
+            if (allowTabFallback) {
+                console.warn('Falling back to tab for popup UI');
+                openPopupUIFallback(manifestPopupPath);
+            } else {
+                console.warn('Tab fallback disabled; not opening popup page as tab');
+            }
             return;
         }
     }
 
-    // API not available: fallback
-    openPopupUIFallback(manifestPopupPath);
+    // API not available
+    if (allowTabFallback) {
+        console.warn('chrome.action.openPopup() not available; using tab fallback');
+        openPopupUIFallback(manifestPopupPath);
+    } else {
+        console.warn('chrome.action.openPopup() not available and tab fallback disabled');
+    }
 }
 
 // React to incoming messages for session control
@@ -361,7 +378,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
             } catch (e) {
                 console.warn('Error handling START_QUICK_SESSION', e);
-                tryOpenPopup('public/popup.html');
+                tryOpenPopup('public/popup.html', false);
                 sendResponse({ ok: false, error: String(e) });
             }
             break;
@@ -413,13 +430,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
                         [STORAGE_KEYS.INDEX]: curIdx + 1
                     }, () => {
                         console.log('Recorded last interrupt timestamp, next due, set pending and current interrupt index', new Date(now).toISOString(), new Date(nextDue).toISOString(), 'idx=', curIdx);
-                        tryOpenPopup('public/popup.html');
+                        tryOpenPopup('public/popup.html', false);
                     });
                 });
             });
         } catch (e) {
             console.warn('Failed to update timestamps on alarm fire', e);
-            tryOpenPopup('public/popup.html');
+            tryOpenPopup('public/popup.html', false);
         }
     }
 });
