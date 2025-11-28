@@ -1,5 +1,5 @@
 // Importing necessary libraries and components
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { QuizCreateWrapper } from './QuizCreate.styled'; // Styled wrapper for the component
 import QuestionModal from './QuestionModal/QuestionModal'; // Modal for adding/editing questions
@@ -21,6 +21,7 @@ const QuizCreate = () => {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false); // State for error modal visibility
   const [errorMessage, setErrorMessage] = useState(''); // Error message to display
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Function to handle adding or editing a question
   const handleAddQuestion = (newQuestion: Question) => {
     if (editingIndex !== null) {
@@ -41,6 +42,110 @@ const QuizCreate = () => {
     setEditingIndex(index); // Set the index of the question being edited
     setIsModalOpen(true); // Open the modal
   };
+
+  // Function to handle JSON file upload
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  // Check if file is JSON
+  if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+    setErrorMessage('Please upload a valid JSON file');
+    setIsErrorModalOpen(true);
+    return;
+  }
+
+  const reader = new FileReader();
+  
+  reader.onload = (e) => {
+    try {
+      const jsonData = JSON.parse(e.target?.result as string);
+      
+      // Validate the JSON structure
+      if (!jsonData.title || !Array.isArray(jsonData.questions)) {
+        setErrorMessage('Invalid JSON format. Expected: { "title": "...", "questions": [...] }');
+        setIsErrorModalOpen(true);
+        return;
+      }
+
+      // Validate each question and ensure type is valid
+      const validTypes = Object.values(QuestionType);
+      const isValid = jsonData.questions.every((q: any) => 
+        q.type && validTypes.includes(q.type) && q.text && q.body !== undefined && q.answer
+      );
+
+      if (!isValid) {
+        setErrorMessage('Invalid question format. Each question needs: valid type, text, body, and answer');
+        setIsErrorModalOpen(true);
+        return;
+      }
+
+      // Set the quiz data
+      setQuizName(jsonData.title);
+      setQuestions(jsonData.questions);
+      alert('Quiz loaded successfully from JSON file!');
+      
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      setErrorMessage(`Error parsing JSON: ${error}`);
+      setIsErrorModalOpen(true);
+    }
+  };
+
+  reader.onerror = () => {
+    setErrorMessage('Error reading file');
+    setIsErrorModalOpen(true);
+  };
+
+  reader.readAsText(file);
+};
+
+// Function to download a JSON template
+// Function to download a JSON template
+const handleDownloadTemplate = () => {
+  const template = {
+    title: "Sample Quiz Template",
+    questions: [
+      {
+        type: 1, // single select
+        text: "What is 2+2?",
+        body: "3&!!&4&!!&5&!!&6",
+        answer: "4"
+      },
+      {
+        type: 2, // multi select
+        text: "Select all even numbers:",
+        body: "1&!!&2&!!&3&!!&4",
+        answer: "2&!!&4"
+      },
+      {
+        type: 3, // fill the blank
+        text: "The capital of France is",
+        body: "",
+        answer: "Paris"
+      },
+      {
+        type: 4, // association
+        text: "Match the countries to capitals:",
+        body: "France&!!&Germany&!!&Italy",
+        answer: "Paris&!!&Berlin&!!&Rome"
+      }
+    ]
+  };
+
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'quiz-template.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
   // Function to handle deleting a question
   const handleDeleteQuestion = (index: number) => {
@@ -146,6 +251,28 @@ const QuizCreate = () => {
     <QuizCreateWrapper>
       {/* Quiz creation form */}
       <h2>Create a Quiz</h2>
+      {/* JSON Upload Option */}
+      <Card className="mb-3">
+        <Card.Body>
+          <h5>Or Upload from JSON</h5>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            id="jsonFileInput"
+          />
+          <label htmlFor="jsonFileInput">
+            <Button as="span" variant="outline-primary">
+              📁 Upload JSON File
+            </Button>
+          </label>
+          <Button variant="outline-secondary" className="ms-2" onClick={handleDownloadTemplate}>
+            ⬇️ Download Template
+          </Button>
+        </Card.Body>
+      </Card>
       <form>
         {/* Input for quiz name */}
         <FloatingLabel controlId="quizName" label="Quiz Name" className="mb-3">
