@@ -270,6 +270,11 @@ const Quiz: React.FC = () => {
     } catch (e) {
       console.warn('Error handling pending interrupt submission', e);
     }
+    // Return to quiz list view after submission
+    setSelectedQuiz(null);
+    setQuestions([]);
+    setAnswers({});
+    setScore(null);
   };
 
   return (
