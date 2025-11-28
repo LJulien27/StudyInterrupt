@@ -16,7 +16,7 @@ from models import User, Session, Contest, Quizz, Interrupt, Question, Username
 from init_db import init_db
 
 # New imports for DB-level operations and webhook delivery
-from database import contests_collection, contest_events_collection
+from database import contests_collection, contest_events_collection, quizzes_collection, questions_collection
 from bson import ObjectId
 import httpx
 import hmac
@@ -289,6 +289,64 @@ async def add_user_session(session: Session):
                     })
         except Exception:
             players = []
+
+        # For public sessions, ensure each participant has access to the quizzes
+        # included in this session. We implement this by creating per-player copies
+        # of the session quizzes (if they don't already exist) with creator_id set
+        # to the participant so they will appear in that player's quiz list.
+        try:
+            participants = session.get('participants') or []
+            for p in participants:
+                pid = p.get('id')
+                if not pid:
+                    continue
+                # skip the original creator
+                if pid == session.get('creator_id'):
+                    continue
+                for q in quizzes:
+                    try:
+                        orig_quiz_id = q.get('_id')
+                        if not orig_quiz_id:
+                            continue
+                        # Avoid duplicating quizzes the participant already has for this session
+                        existing = quizzes_collection.find_one({"creator_id": pid, "title": q.get('title'), "session_id": session.get('_id')})
+                        if existing:
+                            continue
+
+                        # Load the original quiz document to copy full fields
+                        try:
+                            orig = quizzes_collection.find_one({"_id": ObjectId(orig_quiz_id)})
+                        except Exception:
+                            orig = None
+                        if not orig:
+                            continue
+
+                        # Prepare new quiz doc for the participant
+                        new_quiz = dict(orig)
+                        new_quiz.pop('_id', None)
+                        new_quiz['creator_id'] = pid
+                        # set session_id to this session so quiz is associated
+                        new_quiz['session_id'] = session.get('_id')
+                        new_quiz['created_at'] = datetime.datetime.utcnow()
+
+                        ins = quizzes_collection.insert_one(new_quiz)
+                        new_quiz_id = str(ins.inserted_id)
+
+                        # Copy questions for the quiz (if any)
+                        try:
+                            for ques in list(questions_collection.find({"quiz_id": orig_quiz_id})):
+                                nq = dict(ques)
+                                nq.pop('_id', None)
+                                nq['quiz_id'] = new_quiz_id
+                                questions_collection.insert_one(nq)
+                        except Exception:
+                            # best-effort: continue even if questions copy fails
+                            pass
+                    except Exception:
+                        # fail safe per-quiz copy
+                        continue
+        except Exception as e:
+            print('Failed to copy session quizzes to participants:', e)
 
         payload = {
             "session": session,
