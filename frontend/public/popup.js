@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     chrome.identity.getAuthToken({ interactive: false }, (token) => {
       if (chrome.runtime.lastError || !token) {
-        // No token to revoke/remove – treat as logged out on our side
+        // No token to revoke/remove – treat as logged out
         try { localStorage.removeItem('user'); } catch (e) {}
         updateAuthControls(false, null);
         return;
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
           console.warn('Token revoke failed (continuing logout):', err);
         })
         .finally(() => {
-          // Remove token from Chrome cache
+          // Remove token from Chrome cache (after revoke to avoid token being recached by automatic authentication before revoking)
           chrome.identity.removeCachedAuthToken({ token }, () => {
             // Clear your local user state
             try { localStorage.removeItem('user'); } catch (e) {}
@@ -749,7 +749,9 @@ document.addEventListener("DOMContentLoaded", () => {
         updateAuthControls(false, null);
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    // ignore
+  }
 
   tryAuth();
   checkSessionState();

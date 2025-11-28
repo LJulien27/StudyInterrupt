@@ -1,10 +1,5 @@
 export async function initOAuth() {
-  /*const contactsDiv = document.getElementById('contactsDiv');
-    if (!contactsDiv) {
-      console.warn("contactsDiv element not found");
-      return;
-    }
-  */
+
   async function authenticate(interactive: boolean): Promise<string> {
   return new Promise((resolve, reject) => {
     // Guard: only run inside extension
@@ -12,10 +7,11 @@ export async function initOAuth() {
       reject(new Error("Chrome identity API not available"));
       return;
     }
-
+    // depending on a user's chrome browser version, the result of getAuthToken can have a varied shape, which can cause issues
     chrome.identity.getAuthToken(
       { interactive },
-      // `result` can be string | { token: string } | undefined, so type as `any`
+      // 'result' can be string or { token: string } oe undefined, so type as 'any'
+      // handle possible issues by resolving type to string:
       (result: any) => {
         let token: string | undefined;
 
@@ -37,26 +33,19 @@ export async function initOAuth() {
             );
           }
         } else {
-          resolve(token); // ✅ token is a string here
+          resolve(token);
         }
       }
     );
   });
 }
 
-
+  // Get username, password, etc.
   async function fetchUserInfo(token : string): Promise<any> {
     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + token }
     });
     return res.json();
-  }
-
-  async function fetchUserProfile(token : string): Promise<any> {
-    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: 'Bearer ' + token }
-    });
-    return response.json();
   }
 
   async function init() {
@@ -124,8 +113,6 @@ export async function initOAuth() {
         throw new Error(`Server error: ${res.status}`);
       }
 
-      //const profile = await fetchUserProfile(token);
-      //contactsDiv!.innerHTML = `<p>Welcome, ${profile.name} (${profile.email})</p>`;
     } catch (e: any) {
       // If no cached token and user is not in localStorage, silently fail
       // The user can authenticate via popup.js if needed
@@ -134,7 +121,7 @@ export async function initOAuth() {
         console.log("Authentication check failed:", e?.message || e);
       }
       // Don't try interactive login here - let popup.js handle it
-      // This prevents the error from showing when user is already logged in via popup
+      // This prevents error when user is already logged in via popup
     }
   }
 
