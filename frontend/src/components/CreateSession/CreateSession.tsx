@@ -786,19 +786,6 @@ const CreateSession: React.FC = () => {
             </InputGroup>
           </Form.Group>
 
-          <FloatingLabel
-            controlId="participants"
-            label="Participants (comma separated usernames)"
-            className="mb-3"
-          >
-            <Form.Control
-              type="text"
-              placeholder="e.g. alice, bob, charlie"
-              value={participants}
-              onChange={(e) => setParticipants(e.target.value)}
-            />
-          </FloatingLabel>
-
           <div className="d-flex flex-column gap-3 mb-3">
             <div className="d-flex align-items-center gap-2">
               <Button
