@@ -15,7 +15,6 @@ import { useAuth } from "../../AuthContext";
 const QuizCreate = () => {
   // State variables for managing quiz details
   const [quizName, setQuizName] = useState(''); // Quiz name
-  const [quizClass, setQuizClass] = useState(''); // Class name
   const [questions, setQuestions] = useState<Question[]>([]); // List of questions
   const [isModalOpen, setIsModalOpen] = useState(false); // State for question modal visibility
   const [editingIndex, setEditingIndex] = useState<number | null>(null); // Index of the question being edited
@@ -155,17 +154,6 @@ const QuizCreate = () => {
             placeholder="Enter quiz name"
             value={quizName}
             onChange={(e) => setQuizName(e.target.value)}
-            required
-          />
-        </FloatingLabel>
-
-        {/* Input for class name */}
-        <FloatingLabel controlId="quizClass" label="Class" className="mb-3">
-          <Form.Control
-            type="text"
-            placeholder="Enter class name"
-            value={quizClass}
-            onChange={(e) => setQuizClass(e.target.value)}
             required
           />
         </FloatingLabel>
