@@ -185,9 +185,17 @@ const handleJoinSession = async () => {
     <Container className="mt-4">
       
 
-      { validContestID && contestId && (
+      { validContestID && contestId && !inSession && (
         <h2>Waiting for session to start</h2>
       )}
+
+      { validContestID && contestId && inSession && (
+        <>
+          <h2>Session started</h2>
+          <p style={{ marginTop: 8 }}>You have joined the session. Waiting for interrupts to begin.</p>
+        </>
+      )}
+
       { !validContestID && (
         <>
         <Form onSubmit={(e) => { e.preventDefault(); handleJoinSession(); }}>
