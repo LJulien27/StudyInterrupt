@@ -58,42 +58,40 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   const reader = new FileReader();
   
   reader.onload = (e) => {
-    try {
-      const jsonData = JSON.parse(e.target?.result as string);
-      
-      // Validate the JSON structure
-      if (!jsonData.title || !Array.isArray(jsonData.questions)) {
-        setErrorMessage('Invalid JSON format. Expected: { "title": "...", "questions": [...] }');
-        setIsErrorModalOpen(true);
-        return;
-      }
+  try {
+    const jsonData = JSON.parse(e.target?.result as string);
+    
+    // ... (Keep your existing validation logic here) ...
 
-      // Validate each question and ensure type is valid
-      const validTypes = Object.values(QuestionType);
-      const isValid = jsonData.questions.every((q: any) => 
-        q.type && validTypes.includes(q.type) && q.text && q.body !== undefined && q.answer
-      );
+    // FIX START: Convert JSON string types to Enum values
+    const processedQuestions = jsonData.questions.map((q: any) => {
+      // Try to map the string (e.g., "SINGLESELECT") to the Enum value (e.g., 0)
+      // We cast q.type to keyof typeof QuestionType to satisfy TS
+      const mappedType = QuestionType[q.type as keyof typeof QuestionType];
 
-      if (!isValid) {
-        setErrorMessage('Invalid question format. Each question needs: valid type, text, body, and answer');
-        setIsErrorModalOpen(true);
-        return;
-      }
+      return {
+        ...q,
+        // If mappedType is valid, use it. Otherwise, fallback to original (just in case)
+        type: mappedType !== undefined ? mappedType : q.type
+      };
+    });
+    // FIX END
 
-      // Set the quiz data
-      setQuizName(jsonData.title);
-      setQuestions(jsonData.questions);
-      alert('Quiz loaded successfully from JSON file!');
-      
-      // Clear the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error) {
-      setErrorMessage(`Error parsing JSON: ${error}`);
-      setIsErrorModalOpen(true);
+    // Set the quiz data using the processed questions
+    setQuizName(jsonData.title);
+    setQuestions(processedQuestions); // <--- Updated this line
+    
+    console.log("Loaded questions:", processedQuestions);
+    alert('Quiz loaded successfully from JSON file!');
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-  };
+  } catch (error) {
+    setErrorMessage(`Error parsing JSON: ${error}`);
+    setIsErrorModalOpen(true);
+  }
+};
 
   reader.onerror = () => {
     setErrorMessage('Error reading file');
@@ -105,30 +103,31 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
 // Function to download a JSON template
 // Function to download a JSON template
+// Function to download a JSON template
 const handleDownloadTemplate = () => {
   const template = {
     title: "Sample Quiz Template",
     questions: [
       {
-        type: 1, // single select
+        type: "SINGLESELECT",
         text: "What is 2+2?",
         body: "3&!!&4&!!&5&!!&6",
         answer: "4"
       },
       {
-        type: 2, // multi select
+        type: "MULTISELECT",
         text: "Select all even numbers:",
         body: "1&!!&2&!!&3&!!&4",
         answer: "2&!!&4"
       },
       {
-        type: 3, // fill the blank
+        type: "FILLBLANK",
         text: "The capital of France is",
         body: "",
         answer: "Paris"
       },
       {
-        type: 4, // association
+        type: "ASSOCIATION",
         text: "Match the countries to capitals:",
         body: "France&!!&Germany&!!&Italy",
         answer: "Paris&!!&Berlin&!!&Rome"
