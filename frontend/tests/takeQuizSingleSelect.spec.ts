@@ -1,11 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 test('Take Quiz created via API and verify 100% score', async ({ page, request }) => {
+  // Generate a unique quiz title using timestamp
+  const timestamp = Date.now();
+  const uniqueTitle = `Playwright SingleSelect Quiz ${timestamp}`;
+
   // -----------------------------
   // Step 1 - SETUP: Create Quiz via API
   // -----------------------------
   const quizPayload = {
-    title: 'Playwright test for takeQuiz',
+    title: uniqueTitle,
     creator_id: '68e5959e3a521fb2b1bfb12d',
     session_id: null,
     created_at: new Date().toISOString(),

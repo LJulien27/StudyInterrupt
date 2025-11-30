@@ -61,7 +61,7 @@ test('Take FILLBLANK Quiz created via API and verify 100% score', async ({ page,
   // -----------------------------
   // FILLBLANK USER ACTION
   // -----------------------------
-  await page.getByLabel('Your Answer').fill('Paris');
+  await page.locator('input[type="text"]').first().fill('Paris');
 
   // -----------------------------
   // SUBMIT QUIZ → Expect 100%

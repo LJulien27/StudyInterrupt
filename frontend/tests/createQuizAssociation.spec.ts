@@ -20,7 +20,7 @@ test('Create a quiz with one Association Question', async ({ page }) => {
   await page.getByRole('link', { name: 'Create A Quiz' }).click();
 
   await page.getByPlaceholder('Enter quiz name').fill('Playwright Association Quiz');
-  await page.getByPlaceholder('Enter class name').fill('Political Science');
+  // await page.getByPlaceholder('Enter class name').fill('Political Science');
 
   // Add question
   await page.getByRole('button', { name: 'Add Question' }).click();

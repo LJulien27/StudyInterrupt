@@ -23,7 +23,7 @@ test('Create a quiz with one Fill in the Blank question', async ({ page }) => {
   await page.getByRole('link', { name: 'Create A Quiz' }).click();
 
   await page.getByPlaceholder('Enter quiz name').fill('Playwright Fill in the Blank Quiz');
-  await page.getByPlaceholder('Enter class name').fill('Astronomy');
+  // await page.getByPlaceholder('Enter class name').fill('Astronomy');
 
   // Open question modal
   await page.getByRole('button', { name: 'Add Question' }).click();

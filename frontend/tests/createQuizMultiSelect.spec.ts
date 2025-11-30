@@ -25,7 +25,7 @@ test('Create a quiz with one multi-select question', async ({ page }) => {
   await page.getByRole('link', { name: 'Create A Quiz' }).click();
 
   await page.getByPlaceholder('Enter quiz name').fill('Playwright Multi-Select Quiz');
-  await page.getByPlaceholder('Enter class name').fill('Canadian Studies');
+  // await page.getByPlaceholder('Enter class name').fill('Canadian Studies');
 
   // Add question
   await page.getByRole('button', { name: 'Add Question' }).click();

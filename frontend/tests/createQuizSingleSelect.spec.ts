@@ -29,7 +29,7 @@ test('Create a quiz with one question and three options', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Create A Quiz' }).click();
   await page.getByPlaceholder('Enter quiz name').fill('Playwright Quiz');
-  await page.getByPlaceholder('Enter class name').fill('Geography');
+  // await page.getByPlaceholder('Enter class name').fill('Geography');
   await page.getByRole('button', { name: 'Add Question' }).click();
   await page.getByLabel('Question').fill('What country are we in?');
   await page.getByLabel('Option 1').fill('Canada');

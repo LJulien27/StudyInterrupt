@@ -1,5 +1,5 @@
 // Importing necessary libraries and components
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { QuizCreateWrapper } from './QuizCreate.styled'; // Styled wrapper for the component
 import QuestionModal from './QuestionModal/QuestionModal'; // Modal for adding/editing questions
@@ -8,6 +8,19 @@ import { Button, Form, FloatingLabel, Card } from 'react-bootstrap'; // Bootstra
 import Question, { QuestionType } from '../../types/Question'; // Question type definitions
 import User from '../../types/User'; // User type definition
 import { useAuth } from "../../AuthContext";
+
+
+const isLocalhost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1");
+
+const API_BASE = isLocalhost
+  ? "http://localhost:8000"
+  : "https://studyinterruptbackend.onrender.com";
+
+const DEV_USER_ID = "68e5959e3a521fb2b1bfb12d";
+
 
 // Defining the props interface for the QuizCreate component
 
@@ -20,8 +33,33 @@ const QuizCreate = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null); // Index of the question being edited
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false); // State for error modal visibility
   const [errorMessage, setErrorMessage] = useState(''); // Error message to display
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { user, setUser } = useAuth();  // ⬅️ include setUser so we can inject dev user
+
+  // ─────────────────────────────────────────────
+  // 🚀 DEV-MODE AUTO LOGIN for localhost
+  // ─────────────────────────────────────────────
+  // useEffect(() => {
+  //   if (!user) {
+  //     console.warn("⚠️ No user in AuthContext → injecting DEV user.");
+  //     setUser({
+  //       _id: "68e5959e3a521fb2b1bfb12d",
+  //       // name: "Developer Test User",
+  //       // email: "dev@test.com"
+  //     });
+  //   }
+  // }, [user, setUser]);
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    if (isLocalhost && !user) {
+      setUser({ _id: DEV_USER_ID });
+    }
+  }, [user]);
+
+
   // Function to handle adding or editing a question
   const handleAddQuestion = (newQuestion: Question) => {
     if (editingIndex !== null) {
@@ -168,7 +206,9 @@ const handleDownloadTemplate = () => {
 
     try {
       // Submit the quiz to the backend
-      const QuizResponse = await axios.post('https://studyinterruptbackend.onrender.com/quizzes/', quizObject);
+      // const QuizResponse = await axios.post('https://studyinterruptbackend.onrender.com/quizzes/', quizObject);
+      // const QuizResponse = await axios.post('http://localhost:8000/quizzes/', quizObject);
+      const QuizResponse = await axios.post(`${API_BASE}/quizzes/`, quizObject);
       console.log(QuizResponse.data);
       const quizId = QuizResponse.data._id;
 
@@ -184,7 +224,9 @@ const handleDownloadTemplate = () => {
           answer: question.answer, // Correct answer(s)
         };
         console.log(questionObject); // Debugging purposes
-        let response = await axios.post('https://studyinterruptbackend.onrender.com/questions/', questionObject);
+        // let response = await axios.post('https://studyinterruptbackend.onrender.com/questions/', questionObject);
+        // let response = await axios.post('http://localhost:8000/questions/', questionObject);
+        let response = await axios.post(`${API_BASE}/questions/`, questionObject);
         console.log(response.data);
       }
 
