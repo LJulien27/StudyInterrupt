@@ -3,7 +3,7 @@ name: Run Unit Tests
 on:
   push:
     branches:
-      - '**'  # Triggers on push to any branch
+      - 'main'  # Triggers on push to main
 
 jobs:
   test:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
