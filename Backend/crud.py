@@ -448,7 +448,7 @@ def create_question(question: Question):
 def update_user(user_id: str, user: User):
     try:
         # Validate the provided user ID format
-        if not ObjectId.is_valid(ObjectId(user_id)):
+        if not ObjectId.is_valid(user_id):
             raise HTTPException(status_code=400, detail="Invalid user ID format")
 
         # Check if the user exists in the database

@@ -416,6 +416,39 @@ async def create_question_route(question: Question):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# PUT endpoints for updating resources (forward to crud helpers)
+@app.put("/users/{user_id}", status_code=200)
+async def put_update_user(user_id: str, user: User):
+    try:
+        return crud.update_user(user_id, user)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/sessions/{session_id}", status_code=200)
+async def put_update_session(session_id: str, session: Session):
+    try:
+        return crud.update_user_session(session_id, session)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/quizzes/{quiz_id}", status_code=200)
+async def put_update_quiz(quiz_id: str, quiz: Quizz):
+    try:
+        return crud.update_quiz(quiz_id, quiz)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/interrupts/{interrupt_id}", status_code=200)
+async def put_update_interrupt(interrupt_id: str, interrupt: Interrupt):
+    try:
+        return crud.update_interrupt(interrupt_id, interrupt)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.put("/contests/{id}", status_code=200)
 async def put_update_contest(id: str, contest: Contest):
     """Update an existing contest document."""
