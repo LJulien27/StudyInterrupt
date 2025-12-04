@@ -1,7 +1,9 @@
-# StudyInterrupt (group 24 on Brightspace)
+# StudyBreak (Formerly StudyInterrupt)
 
-StudyInterrupt is an AI-powered browser extension designed to keep users accountable for their study goals. The extension monitors the user's browsing activity and interrupts non-productive tasks (e.g., watching YouTube, scrolling through social media, or reading unrelated news) at user-defined intervals (e.g., every 30 minutes). When triggered, it forces the user to complete a quick study-related activity, such as answering a course-related quiz question or solving a coding challenge. Using AI, users can upload course material, and the extension will dynamically generate personalized quizzes or exercises based on the content. For coding enthusiasts, the extension provides algorithm and data structure problems tailored to technical interview preparation. After completing the task, users can resume their activity, making it a powerful tool for staying productive while ensuring continuous learning.
-
+StudyBreak is a browser extension designed to transform digital distractions into active learning opportunities. Instead of passively blocking websites, StudyBreak monitors browsing activity and interrupts non-productive tasks (like social media or video streaming) at user-defined intervals. To resume their activity, users must complete a quick, study-related task, such as answering a quiz, reading a short educational article, or watching a relevant video clip. Unlike generic blockers, StudyBreak puts you in control of your learning. Users **create and submit their own quizzes**, allowing them to tailor the interruptions specifically to their current coursework or exam material. We have moved away from solitary study to a social, competitive model. Users can now:
+* **Share Sessions:** Join the same study session as friends to sync interruptions and content, ensuring everyone takes a "break" to learn at the same time.
+* **Compete on Leaderboards:** Track performance against peers to see who scores higher on interruption quizzes.
+* **Earn Rewards:** Gain points for completing tasks and maintaining study streaks, making accountability fun and engaging.
 <br>
 
 # Contributors:
@@ -15,6 +17,8 @@ André - 300215137 - alepa042@uottawa.ca
 Luca Balan - 300161017 - lbala022@uottawa.ca
 
 Olivier Guindon - 300236168 - oguin073@uottawa.ca
+
+**Group 24 on brightspace**
 
 <br>
 
