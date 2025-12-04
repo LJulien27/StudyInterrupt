@@ -23,7 +23,3 @@ Olivier Guindon - 300236168 - oguin073@uottawa.ca
 Kalonji Kalala - hkalonji@uottawa.ca
 
 <br>
-
-# Jira:
-
-https://uottawa-capstone-team24.atlassian.net/jira/software/projects/SCRUM/summary
