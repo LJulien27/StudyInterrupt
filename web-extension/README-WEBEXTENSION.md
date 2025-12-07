@@ -1,3 +1,6 @@
+# Web extension folder:
+This folder and its contents are entirely deprecated. This folder was once used to run and test web-extension features independently of the rest of the application.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
