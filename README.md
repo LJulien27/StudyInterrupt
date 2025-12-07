@@ -6,6 +6,10 @@ StudyBreak is a browser extension designed to transform digital distractions int
 * **Earn Rewards:** Gain points for completing tasks and maintaining study streaks, making accountability fun and engaging.
 <br>
 
+# Test User:
+testuseremailadd12345@gmail.com
+Password: testuser&Password093jgdwa
+
 # Contributors:
 
 Liam - 300251443 - ljuli048@uOttawa.ca
