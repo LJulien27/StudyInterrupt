@@ -7,7 +7,7 @@ StudyBreak is a browser extension designed to transform digital distractions int
 <br>
 
 # Test User:
-testuseremailadd12345@gmail.com </br>
+Email: testuseremailadd12345@gmail.com </br>
 Password: testuser&Password093jgdwa
 
 # Contributors:
